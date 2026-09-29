@@ -4,11 +4,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .db import issues_col, logs_col, runs_col
-from .engine import SEVERITY_RANK, ensure_fresh, evaluate, load_logs, mark_dirty, run_detection
+from .engine import SEVERITY_RANK, data_lock, ensure_fresh, evaluate, load_logs, mark_dirty
 from .models import Issue, RequestLog
 from .pricing_config import PRICING
 from .rules import RULES, RULES_BY_ID
-from .settings_store import AppSettings, get_settings, save_settings
+from .settings_store import AppSettings, Windows, get_settings, save_settings
 from .synthetic import generate, ground_truth_counts
 
 router = APIRouter(prefix="/api")
@@ -59,9 +59,8 @@ async def list_rules():
 
 @router.post("/detect/run")
 async def detect_run():
-    summary = await run_detection()
-    summary.pop("_id", None)
-    return summary
+    mark_dirty()
+    return await latest_summary()
 
 
 @router.get("/settings", response_model=AppSettings)
@@ -112,10 +111,12 @@ async def recent_logs(limit: int = 25, provider: Optional[str] = None):
 
 @router.post("/synthetic/load")
 async def load_synthetic(body: SyntheticLoad = SyntheticLoad()):
-    await logs_col.delete_many({"source": "synthetic"})
-    logs = generate(body.seed, body.days)
-    await logs_col.insert_many([l.to_mongo() for l in logs])
-    await run_detection()
+    async with data_lock:
+        await logs_col.delete_many({"source": "synthetic"})
+        logs = generate(body.seed, body.days)
+        await logs_col.insert_many([l.to_mongo() for l in logs])
+        mark_dirty()
+    await ensure_fresh()
     return {"inserted": len(logs), "seed": body.seed, "days": body.days, "ground_truth": ground_truth_counts(logs)}
 
 
@@ -125,11 +126,14 @@ async def evaluate_synthetic():
     if not logs:
         return {"has_data": False, "rules": []}
     s = await get_settings()
-    return {"has_data": True, "requests": len(logs), "rules": evaluate(logs, s.windows)}
+    return {"has_data": True, "requests": len(logs), "using_default_windows": s.windows == Windows(),
+            "rules": evaluate(logs, s.windows)}
 
 
 @router.delete("/data")
 async def clear_data():
-    res = await logs_col.delete_many({})
-    await run_detection()
+    async with data_lock:
+        res = await logs_col.delete_many({})
+        mark_dirty()
+    await ensure_fresh()
     return {"deleted": res.deleted_count}

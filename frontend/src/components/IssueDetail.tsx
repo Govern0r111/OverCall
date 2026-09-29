@@ -40,10 +40,10 @@ const SampleTable = ({ rows }: { rows: SampleRequest[] }) => {
   );
 };
 
-export const IssueDetail = ({ issue }: { issue: Issue }) => {
+export const IssueDetail = ({ issue, index }: { issue: Issue; index: number }) => {
   const { money } = useApp();
   return (
-    <div data-testid={`issue-detail-${issue.rule_id}`} className="space-y-6 border-t border-divider bg-background/60 px-5 py-6">
+    <div data-testid={`issue-detail-${index}`} className="space-y-6 border-t border-divider bg-background/60 px-5 py-6">
       <div className="grid gap-6 md:grid-cols-2">
         <div>
           <h4 className="mb-2 text-xs text-muted-foreground">What we detected</h4>

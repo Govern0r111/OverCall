@@ -14,7 +14,7 @@ const NAV = [
 export const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("cg-sidebar") === "1");
   const { data } = useOverview();
-  const openIssues = data?.has_data ? data.top_issues.length && Object.values(data.issue_counts).reduce((a, b) => a + b, 0) : 0;
+  const openIssues = data?.has_data ? Object.values(data.issue_counts).reduce((a, b) => a + b, 0) : 0;
 
   const toggle = () => {
     localStorage.setItem("cg-sidebar", collapsed ? "0" : "1");

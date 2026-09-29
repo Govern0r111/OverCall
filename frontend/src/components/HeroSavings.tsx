@@ -26,7 +26,7 @@ export const HeroSavings = ({ data, className = "" }: { data: Overview; classNam
         {money(data.projected_monthly_usd)}
       </p>
       <p data-testid="hero-supporting-line" className="mt-4 text-sm leading-relaxed">{line}</p>
-      <dl className="mt-auto grid grid-cols-2 gap-5 border-t border-divider pt-6 [margin-top:max(2rem,auto)]">
+      <dl className="mt-8 grid grid-cols-2 gap-5 border-t border-divider pt-6">
         <Stat label="Current spend" value={`${money(data.projected_monthly_cost_usd)}/mo`} testId="hero-monthly-spend" />
         <Stat label="Avoidable" value={`${pct}%`} testId="hero-waste-pct" />
         <Stat label="Flagged requests" value={`${formatInt(data.flagged_request_count)} of ${formatInt(data.request_count)}`} testId="hero-flagged-requests" />

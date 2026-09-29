@@ -10,12 +10,13 @@ from .settings_store import AppSettings, Windows, get_settings
 
 SEVERITY_RANK = {"critical": 0, "warning": 1, "info": 2}
 MAX_LOGS = 200_000
-_state = {"dirty": True}
+_state = {"version": 1, "clean_version": 0}
 _lock = asyncio.Lock()
+data_lock = asyncio.Lock()
 
 
 def mark_dirty():
-    _state["dirty"] = True
+    _state["version"] += 1
 
 
 def window_days(logs: List[RequestLog]) -> float:
@@ -76,6 +77,7 @@ def build_summary(logs, issues, trusted, experimental, days, now) -> dict:
 
 
 async def run_detection() -> dict:
+    version = _state["version"]
     s = await get_settings()
     logs = await load_logs()
     days = window_days(logs)
@@ -96,13 +98,13 @@ async def run_detection() -> dict:
         await issues_col.insert_many([i.to_mongo() for i in issues])
     summary = build_summary(logs, issues, trusted, experimental, days, now)
     await runs_col.replace_one({"_id": "latest"}, summary, upsert=True)
-    _state["dirty"] = False
+    _state["clean_version"] = max(_state["clean_version"], version)
     return summary
 
 
 async def ensure_fresh():
     async with _lock:
-        if _state["dirty"]:
+        if _state["clean_version"] < _state["version"]:
             await run_detection()
 
 

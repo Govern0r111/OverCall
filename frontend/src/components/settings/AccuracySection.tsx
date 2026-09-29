@@ -20,6 +20,12 @@ export const AccuracySection = () => {
           </li>
         ))}
       </ul>
+      {data?.has_data && !data.using_default_windows && (
+        <p data-testid="accuracy-custom-windows-note" className="mb-3 text-xs leading-relaxed text-muted-foreground">
+          Measured with your custom thresholds. The ground truth assumes the defaults, so lower recall here means your
+          thresholds are stricter than the patterns in the demo data.
+        </p>
+      )}
       {data?.has_data ? (
         <div className="overflow-x-auto rounded-md border border-border">
           <table data-testid="accuracy-table" className="w-full min-w-[480px] text-xs">

@@ -1,0 +1,33 @@
+{
+  "summary": "Comprehensive backend + frontend testing of API Cost Guard. Backend: 16/17 tests pass. One real detection bug: duplicate_calls rule has recall=0.6513 (<0.95 target) — 127/195 ground-truth duplicates detected. Frontend: All pages render correctly (Overview, Issues, Providers, Settings), all data-testid selectors present, INR/USD switch works, dark mode persists across reload, tier-3 experimental toggle enables Tier-3 issues with Experimental badge, empty state + load-synthetic-data flow works, sidebar collapse keeps labels visible. Minor: expanded issue row is missing outer data-testid='issue-detail' wrapper (the inner testids like issue-suggested-fix are present).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/synthetic/evaluate", "issue": "duplicate_calls rule recall=0.6513 (68/195 ground-truth duplicates missed). Root cause in backend/costguard/rules/duplicate_calls.py: uses zip(group, group[1:]) which only compares adjacent pairs — when 3+ duplicates exist with the middle gap > short_window_s, the trailing ones are missed even though they duplicate an earlier ok response. Consider comparing each item against the last ok response in the group, not just its immediate predecessor.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "IssueDetail (Overview/Issues expand)", "issue": "The expanded panel container does not carry the required data-testid='issue-detail'. Inner testids (issue-suggested-fix, etc.) are present, but the outer wrapper is missing per spec.", "selector": "[data-testid='issue-detail']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_costguard_api.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix duplicate_calls detection to catch all duplicates within a burst (not just adjacent pairs) so recall reaches >= 0.95",
+    "Add data-testid='issue-detail' to the outer container of the expanded issue detail panel in IssueDetail.tsx"
+  ],
+  "critical_code_review_comments": [
+    "duplicate_calls rule uses only pairwise adjacency; consider tracking the last successful response per (provider, method, req_hash) instead.",
+    "proxy.py uses global httpx.AsyncClient instances — fine, but no per-request timeout override for slow upstream; acceptable for v1."
+  ],
+  "updated_files": ["/app/backend/tests/test_costguard_api.py"],
+  "success_rate": {"backend": "94% (16/17)", "frontend": "~98% (1 minor testid missing)"},
+  "test_credentials": "No auth in v1. STRIPE_API_KEY=sk_test_emergent used from backend env for Stripe proxy tests.",
+  "seed_data_creation": "Reloaded synthetic seed=42 (7232 logs) and reset settings to defaults after tests, per request.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/test_costguard_api.py auto-clears + reloads synthetic seed=42. If duplicate_calls detection is fixed, re-run TestEvaluate to confirm recall >= 0.95. Frontend testids all present except outer issue-detail wrapper.",
+  "rca of the issue": "duplicate_calls recall shortfall: In backend/costguard/rules/duplicate_calls.py the loop `for prev, cur in zip(group, group[1:])` only flags requests whose immediate predecessor in the same (provider, method, req_hash) group is <= short_window_s away. In synthetic bursts of 3+ duplicates, if the internal gaps stretch beyond short_window_s while later calls remain within a short window of an earlier successful response, those are missed. Fix: iterate maintaining a rolling anchor (the last ok response) and flag any subsequent call whose gap from that anchor is <= short_window_s, or reset the anchor to the current call if the gap exceeds the window."
+}

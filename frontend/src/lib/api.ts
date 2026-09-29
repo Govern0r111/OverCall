@@ -129,5 +129,6 @@ export interface RuleAccuracy {
 export interface Evaluation {
   has_data: boolean;
   requests?: number;
+  using_default_windows?: boolean;
   rules: RuleAccuracy[];
 }

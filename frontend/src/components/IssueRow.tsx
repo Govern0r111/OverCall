@@ -42,7 +42,7 @@ export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
         <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />
       </button>
       <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-        <div className="overflow-hidden">{open && <IssueDetail issue={issue} />}</div>
+        <div className="overflow-hidden">{open && <IssueDetail issue={issue} index={index} />}</div>
       </div>
     </li>
   );
