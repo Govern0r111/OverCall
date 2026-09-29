@@ -1,0 +1,16 @@
+{
+  "provider": "aws",
+  "version": "0.0.0-stub",
+  "currency": "USD",
+  "status": "stub",
+  "source": "https://aws.amazon.com/pricing",
+  "notes": "Stubbed for v1. Schema and pricing slot are ready; no detection rules are active for AWS yet.",
+  "upstream": {},
+  "services": {
+    "s3": {"get_per_1k": 0.0004, "put_per_1k": 0.005},
+    "lambda": {"requests_per_1m": 0.2, "gb_second": 0.0000166667},
+    "bedrock": {"note": "per-model token pricing slot"}
+  },
+  "deterministic_post_endpoints": [],
+  "batch_equivalents": {}
+}
