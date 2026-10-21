@@ -1,7 +1,8 @@
-import { FlaskConical } from "lucide-react";
+import { ArrowDownRight, FlaskConical } from "lucide-react";
 import type { Overview } from "../lib/api";
 import { formatInt } from "../lib/format";
 import { useApp } from "../context/AppContext";
+import { useCountUp } from "../hooks/useCountUp";
 import { Card } from "./PageHeader";
 
 const Stat = ({ label, value, testId }: { label: string; value: string; testId: string }) => (
@@ -15,15 +16,29 @@ export const HeroSavings = ({ data, className = "" }: { data: Overview; classNam
   const { money, settings } = useApp();
   const total = Object.values(data.issue_counts).reduce((a, b) => a + b, 0);
   const pct = data.waste_pct.toFixed(data.waste_pct < 10 ? 1 : 0);
-  const line =
-    data.projected_monthly_usd > 0
-      ? `Fixing the issues below would cut your API bill by about ${money(data.projected_monthly_usd)} a month — roughly ${pct}% of the ${money(data.projected_monthly_cost_usd)} you're on track to spend.`
-      : "No wasteful patterns found in the current traffic. We'll keep watching new requests.";
+  const animatedSavings = useCountUp(data.projected_monthly_usd);
+  const hasSavings = data.projected_monthly_usd > 0;
+
+  const line = hasSavings
+    ? `Fixing the issues below would cut your API bill by about ${money(data.projected_monthly_usd)} a month — roughly ${pct}% of the ${money(data.projected_monthly_cost_usd)} you're on track to spend.`
+    : "No wasteful patterns found in the current traffic. We'll keep watching new requests.";
+
   return (
     <Card testId="hero-savings-card" className={`flex flex-col p-6 lg:p-8 ${className}`}>
-      <p className="text-sm text-muted-foreground">Projected monthly savings</p>
-      <p data-testid="hero-projected-savings" className="mt-3 font-mono text-5xl font-medium tracking-tight text-savings">
-        {money(data.projected_monthly_usd)}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Projected monthly savings</p>
+        {hasSavings && (
+          <span className="flex items-center gap-1 rounded-full border border-savings/30 bg-savings/[0.06] px-2 py-0.5 text-xs font-medium text-savings">
+            <ArrowDownRight className="h-3 w-3" strokeWidth={2} />
+            {pct}% avoidable
+          </span>
+        )}
+      </div>
+      <p
+        data-testid="hero-projected-savings"
+        className="mt-3 font-mono text-5xl font-medium tracking-tight text-savings tabular-nums"
+      >
+        {money(animatedSavings)}
       </p>
       <p data-testid="hero-supporting-line" className="mt-4 text-sm leading-relaxed">{line}</p>
       <dl className="mt-8 grid grid-cols-2 gap-5 border-t border-divider pt-6">

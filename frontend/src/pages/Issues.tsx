@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { PageHeader, Card } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
@@ -38,10 +38,16 @@ export default function Issues() {
   if (!overview.data.has_data) return <EmptyState />;
 
   const total = (issues ?? []).reduce((s, i) => s + i.projected_monthly_usd, 0);
+  const activeFilters = Object.values(filters).filter((v) => v !== "all").length;
+
   return (
     <div>
       <PageHeader title="Issues" description="Every wasteful pattern we found, highest impact first. Select a row to see what we detected and how to fix it." />
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Filter className="h-3.5 w-3.5" />
+          Filter
+        </div>
         {FILTERS.map((f) => (
           <FilterSelect key={f.key} f={f} value={filters[f.key]} onChange={(v) => setFilters({ ...filters, [f.key]: v })} />
         ))}

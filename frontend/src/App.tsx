@@ -2,6 +2,7 @@ import "./App.css";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { Sidebar } from "./components/Sidebar";
+import { Topbar } from "./components/Topbar";
 import { Toaster } from "./components/ui/sonner";
 import Overview from "./pages/Overview";
 import Issues from "./pages/Issues";
@@ -14,16 +15,19 @@ const Shell = () => {
     <BrowserRouter>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar />
-        <main className="min-w-0 flex-1">
-          <div className="mx-auto max-w-6xl px-6 py-10 lg:px-12">
-            <Routes>
-              <Route path="/" element={<Overview />} />
-              <Route path="/issues" element={<Issues />} />
-              <Route path="/providers" element={<Providers />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </div>
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar />
+          <main className="min-w-0 flex-1">
+            <div className="mx-auto max-w-6xl px-6 py-10 lg:px-12">
+              <Routes>
+                <Route path="/" element={<Overview />} />
+                <Route path="/issues" element={<Issues />} />
+                <Route path="/providers" element={<Providers />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
       </div>
       <Toaster theme={theme} position="bottom-right" />
     </BrowserRouter>

@@ -7,6 +7,12 @@ import { useApp } from "../context/AppContext";
 import { SeverityBadge, TierBadge } from "./Badges";
 import { IssueDetail } from "./IssueDetail";
 
+const SEVERITY_BAR: Record<string, string> = {
+  critical: "bg-critical",
+  warning: "bg-warning",
+  info: "bg-muted-foreground",
+};
+
 export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
   const [open, setOpen] = useState(false);
   const { money } = useApp();
@@ -17,8 +23,9 @@ export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         data-testid={`issue-row-expand-button-${index}`}
-        className="flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-accent"
+        className="group flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-accent/50"
       >
+        <span className={cn("mt-2 h-8 w-0.5 shrink-0 rounded-full", SEVERITY_BAR[issue.severity])} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={issue.severity} testId={`issue-severity-${index}`} />
@@ -27,7 +34,9 @@ export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{issue.summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
             <span>{PROVIDER_NAME[issue.provider]}</span>
+            <span className="text-divider">·</span>
             <span className="font-mono">{issue.endpoint}</span>
+            <span className="text-divider">·</span>
             <span className="font-mono">{formatInt(issue.affected_count)} requests</span>
             <TierBadge tier={issue.tier} confidence={issue.experimental ? issue.confidence : undefined} testId={`issue-tier-${index}`} />
           </div>
@@ -39,7 +48,7 @@ export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
           </div>
           <div className="mt-1 text-xs text-muted-foreground">projected</div>
         </div>
-        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-180")} />
+        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:text-foreground", open && "rotate-180")} />
       </button>
       <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="overflow-hidden">{open && <IssueDetail issue={issue} index={index} />}</div>
