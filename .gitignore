@@ -28,6 +28,7 @@ next-env.d.ts
 # Production builds
 /build
 dist/
+.lighthouseci/
 dist
 
 # Environment files (comprehensive coverage)
@@ -41,6 +42,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
+*.log
+hs_err_pid*
+replay_pid*
 
 # System files
 .DS_Store
@@ -51,6 +55,9 @@ __pycache__/
 *pyc*
 venv/
 .venv/
+.pytest_cache/
+.ruff_cache/
+apps/api/.tiktoken/
 
 # Development tools
 chainlit.md
@@ -87,6 +94,10 @@ frontend/node_modules/.cache/default-development/0.pack
 .env
 .env.*
 *.env
+!.env.example
+!**/.env.example
 credentials.json
 *.key
 .credentials
+validation/samples/
+dist/

@@ -1,7 +1,7 @@
 {
-  "project_title": "API Cost Guard — Web App (Proxy + Detection Engine + Dashboard)",
+  "project_title": "Overcall — Web App (Proxy + Detection Engine + Dashboard)",
   "app_type": "dashboard (saas_app)",
-  "context": "Calm, transparent, developer-centric proxy monitoring & cost guard dashboard. Sits between web apps and paid APIs (OpenAI, Stripe, AWS, Anthropic, DeepSeek), logs traffic, detects wasteful usage patterns across 3 detection tiers, and quantifies real money saved.",
+  "context": "Calm, transparent, developer-centric proxy monitoring dashboard. Overcall sits between web apps and paid APIs (OpenAI, Stripe, AWS, Anthropic, DeepSeek), logs traffic, detects wasteful usage patterns across 3 detection tiers, and quantifies real money saved.",
   "theme_strategy": {
     "philosophy": "Flat surfaces with 1px hairline borders, no gradients, no glassmorphism, no stacked shadows. Elevation reserved strictly for genuinely floating elements (dropdown menus, popovers).",
     "hierarchy_rule": "One clear visual hierarchy per screen; max 4 type sizes per screen; sentence case everywhere.",
