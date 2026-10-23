@@ -20,13 +20,33 @@ const FIELDS: { key: keyof Windows; label: string; unit: string; help: string }[
   { key: "model_overuse_max_completion_tokens", label: "Small task — answer", unit: "tokens", help: "Experimental: max answer for a 'small' task." },
 ];
 
+const toDraft = (windows: Windows): Record<keyof Windows, string> =>
+  Object.fromEntries(Object.entries(windows).map(([key, value]) => [key, String(value)])) as Record<keyof Windows, string>;
+
 export const WindowsSection = () => {
   const { settings } = useApp();
   const save = useSaveSettings();
-  const [draft, setDraft] = useState<Windows>(settings!.windows);
-  useEffect(() => setDraft(settings!.windows), [settings]);
-  const dirty = FIELDS.some((f) => draft[f.key] !== settings!.windows[f.key]);
-  const valid = FIELDS.every((f) => Number(draft[f.key]) > 0);
+  const [draft, setDraft] = useState<Record<keyof Windows, string>>(() => toDraft(settings!.windows));
+  useEffect(() => setDraft(toDraft(settings!.windows)), [settings]);
+  const dirty = FIELDS.some((f) => draft[f.key] !== String(settings!.windows[f.key]));
+  const valid = FIELDS.every((f) => draft[f.key].trim() !== "" && Number.isInteger(Number(draft[f.key])) && Number(draft[f.key]) > 0) &&
+    Number(draft.long_window_s) > Number(draft.short_window_s);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeave);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeave);
+  }, [dirty]);
+
+  const saveDraft = () => {
+    const windows: Windows = { ...settings!.windows };
+    for (const field of FIELDS) windows[field.key] = Number(draft[field.key]);
+    save.mutate({ ...settings!, windows });
+  };
 
   return (
     <SettingsSection testId="settings-windows" title="Windows and thresholds" description="Detection windows are config parameters. Lower thresholds catch more, but may flag legitimate traffic.">
@@ -38,23 +58,31 @@ export const WindowsSection = () => {
               <Input
                 data-testid={`window-input-${f.key}`}
                 type="number"
-                min={0}
+                min={1}
+                step={1}
                 value={draft[f.key]}
-                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value === "" ? "" : Number(e.target.value) } as Windows)}
+                aria-invalid={draft[f.key].trim() === "" || !Number.isInteger(Number(draft[f.key])) || Number(draft[f.key]) <= 0 || (f.key === "long_window_s" && Number(draft[f.key]) <= Number(draft.short_window_s))}
+                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
                 className="h-8 font-mono text-xs"
               />
               <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{f.unit}</span>
             </div>
             <span className="mt-1 block text-xs text-muted-foreground">{f.help}</span>
+            {(draft[f.key].trim() === "" || !Number.isInteger(Number(draft[f.key])) || Number(draft[f.key]) <= 0) && (
+              <span role="alert" className="mt-1 block text-xs text-destructive">Enter a positive whole number.</span>
+            )}
+            {f.key === "long_window_s" && Number(draft.long_window_s) <= Number(draft.short_window_s) && (
+              <span role="alert" className="mt-1 block text-xs text-destructive">Long window must be greater than the short window.</span>
+            )}
           </label>
         ))}
       </div>
       <div className="mt-6 flex items-center gap-3">
-        <Button size="sm" data-testid="save-windows-button" disabled={!dirty || !valid || save.isPending} onClick={() => save.mutate({ ...settings!, windows: draft })}>
+        <Button size="sm" data-testid="save-windows-button" disabled={!dirty || !valid || save.isPending} onClick={saveDraft}>
           Save thresholds
         </Button>
         {dirty && (
-          <Button size="sm" variant="ghost" data-testid="discard-windows-button" onClick={() => setDraft(settings!.windows)}>
+          <Button size="sm" variant="ghost" data-testid="discard-windows-button" onClick={() => setDraft(toDraft(settings!.windows))}>
             Discard changes
           </Button>
         )}

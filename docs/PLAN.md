@@ -624,6 +624,8 @@ These are the same numbers the current code uses, plus `token_bloat_min_context_
 
 ## 4A. Frontend modules (F1–F8)
 
+> Progress checkboxes below reflect verified behavior in the current checkout. Items that require missing contract fixtures, backend endpoints, or manual visual/provider configuration remain unchecked and are called out at the relevant module.
+
 Common rules for every frontend module:
 
 - Builds against MSW and `contract/fixtures` only. No real backend until I1.
@@ -650,7 +652,7 @@ Common rules for every frontend module:
 | `--muted` | #6B6F76 | #9A9DA6 |
 | `--accent` | #35507A | #7C9CC4 |
 | `--positive` | #2F7D5A | #5FB98A |
-| `--warning` | #B8791A | #D9A64E |
+| `--warning` | #8C5A0D | #D9A64E |
 | `--critical` | #B3392C | #E0685C |
 
 Selected by `<html data-theme="light|dark">`. A tiny inline script in `index.html` sets it before first paint (no flash). Preference stored in `localStorage` key `overcall-theme` as `system | light | dark`, default `system`. Existing shadcn-style variable names (`--background`, `--card`, `--primary`) become aliases of these tokens so unmigrated components keep working until their own module.
@@ -687,12 +689,14 @@ Selected by `<html data-theme="light|dark">`. A tiny inline script in `index.htm
 
 **Done when**
 - [ ] Both themes look right at 320, 768 and 1280 px.
-- [ ] The page makes **no backend calls** (Playwright assertion).
-- [ ] Buttons route to `/signup` and `/app`.
-- [ ] Lighthouse accessibility ≥ 90.
-- [ ] `check-design-rules` passes. No gradients or shadows.
-- [ ] Tokens file is the only place hex colours appear.
-- [ ] `npm run build` passes and the old CRA files are gone.
+- [x] The page makes **no backend calls** (Playwright assertion).
+- [x] Buttons route to `/signup` and `/app`.
+- [x] Lighthouse accessibility ≥ 90.
+- [x] `check-design-rules` passes. No gradients or shadows.
+- [x] Tokens file is the only place hex colours appear.
+- [x] `npm run build` passes and the old CRA files are gone.
+
+> The responsive checks confirm no horizontal overflow at the three widths in both themes. The visual screenshots still need a human review before claiming the first item.
 
 ### F2 — Auth pages (UI) · size M
 
@@ -743,10 +747,10 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** email confirmation on and off. Two tabs: logging out in one signs out the other (`storage` event or Supabase listener). Session expires mid-use: a 401 from the API sends the user to `/login` with a "Your session ended" message. OAuth hash fragments. Password managers (`autocomplete` values). Trailing spaces and uppercase in email (trim and lowercase before sending). A user clicking Google while Supabase is unconfigured sees no button.
 
 **Done when**
-- [ ] You can sign up, log in, log out and `/app` redirects when signed out, all with the mock client.
-- [ ] Open-redirect tests pass.
+- [x] You can sign up, log in, log out and `/app` redirects when signed out, all with the mock client.
+- [x] Open-redirect tests pass.
 - [ ] Switching `VITE_AUTH_MODE=supabase` against your Supabase project works for email and Google (manual check).
-- [ ] No auth code outside `src/auth` and `src/features/auth` talks to Supabase.
+- [x] No auth code outside `src/auth` and `src/features/auth` talks to Supabase.
 
 ### F3 — App shell · size M
 
@@ -778,10 +782,12 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** the MSW worker failing to register (show a clear dev error). Query retry storms (none on 4xx). Window resize while the drawer is open. Rate returned as 0 (guard divide-by-zero, show USD). Scenario switching while on a page. Demo session never calls a real URL (assert in a test by failing on any unhandled request).
 
 **Done when**
-- [ ] Every route renders a placeholder inside the shell and the mock data loads.
-- [ ] Currency switch works everywhere through `useMoney()`.
-- [ ] Unhandled requests fail the test run.
+- [x] Every route renders a placeholder inside the shell and the mock data loads.
+- [x] Currency switch works everywhere through `useMoney()`.
+- [x] Unhandled requests fail the test run.
 - [ ] `npm run gen:api` produces no diff on a clean checkout.
+
+> **Blocked:** `contract/openapi.yaml` and the contract fixtures are absent, so deterministic API type generation cannot be added or verified. The frontend uses the checked-in `/api` contract instead.
 
 ### F4 — Overview dashboard · size M
 
@@ -810,9 +816,11 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 
 **Done when**
 - [ ] Page matches `overview.demo.json` in both themes.
-- [ ] Empty state shows when there is no data.
+- [x] Empty state shows when there is no data.
 - [ ] The two figures are separate and never added.
-- [ ] Demo label always appears for demo data.
+- [x] Demo label always appears for demo data.
+
+> **Incomplete:** the planned overview fixtures and separate reliability figure are not provided by the current API, so fixture parity and figure separation remain unverified.
 
 ### F5 — Issues page · size M
 
@@ -837,10 +845,12 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** hundreds of issues (paginate). Very long endpoint path (wrap). Deep link `?open=<id>` expands that row. Filter value in the URL that no longer exists. Tier 3 turned off while a Tier 3 row is open. Confidence missing on Tier 3 (show "Confidence unknown").
 
 **Done when**
-- [ ] Filters combine correctly.
-- [ ] A row expands and collapses with the keyboard.
-- [ ] No request body is ever rendered.
+- [x] Filters combine correctly.
+- [x] A row expands and collapses with the keyboard.
+- [x] No request body is ever rendered.
 - [ ] Tier 3 is hidden unless enabled and always badged when shown.
+
+> **Unverified:** the current API and demo fixtures contain no Tier 3 issue to exercise the enabled-and-badged state.
 
 ### F6 — Log Explorer · size M
 
@@ -865,8 +875,10 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 
 **Done when**
 - [ ] You can find a specific request in a few seconds using search and filters (timed manually on the 5 000-row demo set).
-- [ ] The panel shows all metadata and links to flagging issues.
-- [ ] Keyboard and screen-reader pass (`axe`).
+- [x] The panel shows all metadata and links to flagging issues.
+- [x] Keyboard and screen-reader pass (`axe`).
+
+> **Backend limitation:** the current endpoint returns at most 200 recent logs and has no cursor pagination, facets, or per-log detail route; the 5,000-row timed criterion is not met.
 
 ### F7 — Providers page · size S
 
@@ -888,9 +900,11 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** clipboard API unavailable (select-all fallback). Sixth key (conflict message). Revoked key still listed with a muted state. Long key names.
 
 **Done when**
-- [ ] Copy buttons work.
+- [x] Copy buttons work.
 - [ ] Each snippet matches the real proxy routes (shared route fixture).
 - [ ] The key is shown only once.
+
+> **Backend limitation:** there is no shared proxy-route fixture or ingest-key API. Key management is explicitly reported as unavailable rather than simulated.
 
 ### F8 — Settings page · size M
 
@@ -914,10 +928,12 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** rate 0, negative, empty or huge. Threshold typed as text. Two rapid saves. A save failing mid-way (form keeps user input). Tier 3 toggled while its rules are off. Settings reset while the form is dirty.
 
 **Done when**
-- [ ] Changes persist through the mock handlers.
-- [ ] Invalid values show inline errors.
-- [ ] Real upstream needs confirmation. Destructive actions need a confirm step.
-- [ ] The Accuracy table shows synthetic and real accuracy as two separate rows.
+- [x] Changes persist through the mock handlers.
+- [x] Invalid values show inline errors.
+- [x] Real upstream needs confirmation. Destructive actions need a confirm step.
+- [x] The Accuracy table shows synthetic and real accuracy as two separate rows.
+
+> **Backend limitation:** no real-traffic fixture evaluation, 95% interval, settings-reset route, or `/v1/accuracy` endpoint exists in the current API. The UI labels real-traffic accuracy as not measured instead of fabricating results.
 
 ---
 
@@ -1791,4 +1807,3 @@ Paste these three things and nothing else:
 | `/api/…` routes | `/v1/…` (API), `/proxy/…` (proxy) |
 | `REACT_APP_*` | `VITE_*` |
 | MongoDB collections, Supabase REST adapter | Postgres tables via SQLModel (§3.2) |
-

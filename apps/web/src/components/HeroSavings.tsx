@@ -1,7 +1,7 @@
 import { ArrowDownRight, FlaskConical } from "lucide-react";
 import type { Overview } from "../lib/api";
 import { formatInt } from "../lib/format";
-import { useApp } from "../context/AppContext";
+import { useApp, useMoney } from "../context/AppContext";
 import { useCountUp } from "../hooks/useCountUp";
 import { Card } from "./PageHeader";
 
@@ -13,7 +13,8 @@ const Stat = ({ label, value, testId }: { label: string; value: string; testId: 
 );
 
 export const HeroSavings = ({ data, className = "" }: { data: Overview; className?: string }) => {
-  const { money, settings } = useApp();
+  const money = useMoney();
+  const { settings } = useApp();
   const total = Object.values(data.issue_counts).reduce((a, b) => a + b, 0);
   const pct = data.waste_pct.toFixed(data.waste_pct < 10 ? 1 : 0);
   const animatedSavings = useCountUp(data.projected_monthly_usd);

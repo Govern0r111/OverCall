@@ -10,7 +10,7 @@ export const AccuracySection = () => {
     <SettingsSection
       testId="settings-accuracy"
       title="Pricing and accuracy"
-      description="Pricing tables are versioned config files that need a manual update when providers change prices. Accuracy is measured against the synthetic data's known ground truth."
+      description="Pricing tables are versioned config files. Accuracy results stay separate by dataset; synthetic ground truth is circular and is not a measure of real-world performance."
     >
       <ul className="mb-6 space-y-1.5 text-xs">
         {providers?.map((p) => (
@@ -20,6 +20,16 @@ export const AccuracySection = () => {
           </li>
         ))}
       </ul>
+      <section aria-labelledby="synthetic-accuracy-title" className="mb-5 rounded-md border border-border p-4">
+        <h3 id="synthetic-accuracy-title" className="text-sm font-medium">Synthetic data <span className="text-xs text-muted-foreground">(circular ground truth)</span></h3>
+        {data?.has_data ? (
+          <p className="mt-1 text-xs text-muted-foreground">{data.requests?.toLocaleString() ?? "Unknown"} synthetic requests evaluated.</p>
+        ) : <p className="mt-1 text-xs text-muted-foreground">Load synthetic data to evaluate rules against its generated ground truth.</p>}
+      </section>
+      <section aria-labelledby="real-accuracy-title" className="mb-5 rounded-md border border-border p-4">
+        <h3 id="real-accuracy-title" className="text-sm font-medium">Real-traffic fixtures</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Not measured yet. This API does not provide a real-traffic fixture evaluation or a 95% confidence interval.</p>
+      </section>
       {data?.has_data && !data.using_default_windows && (
         <p data-testid="accuracy-custom-windows-note" className="mb-3 text-xs leading-relaxed text-muted-foreground">
           Measured with your custom thresholds. The ground truth assumes the defaults, so lower recall here means your

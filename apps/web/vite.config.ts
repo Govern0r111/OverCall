@@ -21,5 +21,13 @@ export default defineConfig(({ mode }) => {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
+    server: {
+      proxy: {
+        "/api": {
+          target: env.VITE_BACKEND_URL || "http://localhost:8000",
+          changeOrigin: true,
+        },
+      },
+    },
   };
 });

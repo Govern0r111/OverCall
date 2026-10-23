@@ -48,17 +48,20 @@ const body = (p: Provider) => {
 };
 
 export const PricingTable = ({ provider }: { provider: Provider }) => (
-  <div data-testid={`provider-${provider.id}-pricing`}>
-    <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-      <p className="text-xs text-muted-foreground">
-        Pricing config <span className="font-mono text-foreground">pricing/{provider.id}.json</span> · version{" "}
-        <span data-testid={`provider-${provider.id}-pricing-version`} className="font-mono text-foreground">{provider.pricing.version}</span>
-      </p>
-      <a href={provider.pricing.source} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-        Official pricing
-      </a>
+  <details data-testid={`provider-${provider.id}-pricing`} className="border-t border-divider pt-4">
+    <summary className="cursor-pointer text-sm font-medium">Pricing details</summary>
+    <div className="mt-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Pricing config <span className="font-mono text-foreground">pricing/{provider.id}.json</span> · version{" "}
+          <span data-testid={`provider-${provider.id}-pricing-version`} className="font-mono text-foreground">{provider.pricing.version}</span>
+        </p>
+        <a href={provider.pricing.source} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+          Official pricing
+        </a>
+      </div>
+      {body(provider)}
+      {provider.id !== "aws" && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{provider.pricing.notes}</p>}
     </div>
-    {body(provider)}
-    {provider.id !== "aws" && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{provider.pricing.notes}</p>}
-  </div>
+  </details>
 );

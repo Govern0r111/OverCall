@@ -4,7 +4,8 @@ import { expect, test } from "@playwright/test";
 test("landing loads without requests to another origin", async ({ page }) => {
   const externalRequests: string[] = [];
   page.on("request", (request) => {
-    if (new URL(request.url()).origin !== "http://127.0.0.1:4173") {
+    const url = new URL(request.url());
+    if (url.origin !== "http://127.0.0.1:4173" || url.pathname.startsWith("/api/")) {
       externalRequests.push(request.url());
     }
   });
@@ -16,11 +17,8 @@ test("landing loads without requests to another origin", async ({ page }) => {
 
 test("the primary links point to signup and the demo routes", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("overcall-demo-session", JSON.stringify({ email: "demo@overcall.local" }));
+    localStorage.setItem("overcall-mock-session", JSON.stringify({ email: "demo@overcall.local" }));
   });
-  await page.route("http://localhost:8000/api/**", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
-  );
   await page.goto("/");
 
   await page.getByRole("link", { name: "Sign up" }).click();
@@ -55,6 +53,13 @@ for (const theme of ["light", "dark"]) {
 
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
+    for (const width of [320, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      const hasHorizontalOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      );
+      expect(hasHorizontalOverflow, `${theme} theme at ${width}px`).toBe(false);
+    }
     await page.screenshot({ path: `test-results/landing-${theme}.png`, fullPage: true });
   });
 }

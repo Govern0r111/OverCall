@@ -1,12 +1,13 @@
 import "./App.css";
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { lazy, Suspense, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Toaster } from "./components/ui/sonner";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { LandingPage } from "./features/landing/LandingPage";
+import AuthCallback from "./pages/AuthCallback";
 
 const Overview = lazy(() => import("./pages/Overview"));
 const Issues = lazy(() => import("./pages/Issues"));
@@ -17,29 +18,31 @@ const AuthPage = lazy(() => import("./pages/AuthPage"));
 
 const Shell = () => {
   const { theme } = useApp();
-  const location = useLocation();
-  const page = location.pathname === "/issues" ? <Issues /> :
-    location.pathname === "/logs" ? <Logs /> :
-    location.pathname === "/providers" ? <Providers /> :
-    location.pathname === "/settings" ? <Settings /> :
-    <Overview />;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
-    <ProtectedRoute>
+    <>
       <div className="flex min-h-screen bg-background text-foreground">
-        <Sidebar />
+        <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar />
-          <main className="min-w-0 flex-1">
+          <Topbar onMenuClick={() => setMobileMenuOpen(true)} menuOpen={mobileMenuOpen} />
+          <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
             <div className="mx-auto max-w-6xl px-6 py-10 lg:px-12">
               <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading your page…</p>}>
-                {page}
+                <Routes>
+                  <Route index element={<Overview />} />
+                  <Route path="issues" element={<Issues />} />
+                  <Route path="logs" element={<Logs />} />
+                  <Route path="providers" element={<Providers />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/app" replace />} />
+                </Routes>
               </Suspense>
             </div>
           </main>
         </div>
       </div>
       <Toaster theme={theme} position="bottom-right" />
-    </ProtectedRoute>
+    </>
   );
 };
 
@@ -51,14 +54,14 @@ export default function AppRouter() {
         <Route path="/login" element={<Suspense fallback={null}><AuthPage mode="login" /></Suspense>} />
         <Route path="/signup" element={<Suspense fallback={null}><AuthPage mode="signup" /></Suspense>} />
         <Route path="/forgot" element={<Suspense fallback={null}><AuthPage mode="forgot" /></Suspense>} />
-        <Route
-          path="/*"
-          element={
-            <AppProvider>
-              <Shell />
-            </AppProvider>
-          }
-        />
+        <Route path="/reset" element={<Suspense fallback={null}><AuthPage mode="reset" /></Suspense>} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/app/*" element={<ProtectedRoute><AppProvider><Shell /></AppProvider></ProtectedRoute>} />
+        <Route path="/issues" element={<Navigate to="/app/issues" replace />} />
+        <Route path="/logs" element={<Navigate to="/app/logs" replace />} />
+        <Route path="/providers" element={<Navigate to="/app/providers" replace />} />
+        <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+        <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -32,10 +32,12 @@ export interface LogFilters {
 }
 
 export const useLogs = (filters: LogFilters) => {
-  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
   return useQuery({
-    queryKey: ["logs", params],
-    queryFn: () => get<LogEntry[]>("/logs", params),
+    queryKey: ["logs", filters.provider ?? "all"],
+    queryFn: () => get<LogEntry[]>("/logs/recent", {
+      limit: 200,
+      ...(filters.provider ? { provider: filters.provider } : {}),
+    }),
     refetchInterval: 15_000,
   });
 };

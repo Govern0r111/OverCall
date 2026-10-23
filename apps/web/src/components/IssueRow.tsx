@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { Issue } from "../lib/api";
 import { PROVIDER_NAME, formatInt } from "../lib/format";
-import { useApp } from "../context/AppContext";
+import { useMoney } from "../context/AppContext";
 import { SeverityBadge, TierBadge } from "./Badges";
 import { IssueDetail } from "./IssueDetail";
 
@@ -13,15 +13,17 @@ const SEVERITY_BAR: Record<string, string> = {
   info: "bg-muted-foreground",
 };
 
-export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
-  const [open, setOpen] = useState(false);
-  const { money } = useApp();
+export const IssueRow = ({ issue, index, open, onToggle }: { issue: Issue; index: number; open?: boolean; onToggle?: () => void }) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const expanded = open ?? internalOpen;
+  const toggle = onToggle ?? (() => setInternalOpen((current) => !current));
+  const money = useMoney();
   return (
     <li data-testid={`issue-row-${index}`} className="border-b border-divider last:border-b-0">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
+        onClick={toggle}
+        aria-expanded={expanded}
         data-testid={`issue-row-expand-button-${index}`}
         className="group flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-accent/50"
       >
@@ -48,10 +50,10 @@ export const IssueRow = ({ issue, index }: { issue: Issue; index: number }) => {
           </div>
           <div className="mt-1 text-xs text-muted-foreground">projected</div>
         </div>
-        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:text-foreground", open && "rotate-180")} />
+        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:text-foreground", expanded && "rotate-180")} />
       </button>
-      <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-        <div className="overflow-hidden">{open && <IssueDetail issue={issue} index={index} />}</div>
+      <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+        <div className="overflow-hidden">{expanded && <IssueDetail issue={issue} index={index} />}</div>
       </div>
     </li>
   );

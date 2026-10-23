@@ -1,7 +1,7 @@
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { TrendPoint } from "../lib/api";
 import { formatDay } from "../lib/format";
-import { useApp } from "../context/AppContext";
+import { useMoney } from "../context/AppContext";
 import { Card } from "./PageHeader";
 
 const PALETTE = {
@@ -12,7 +12,7 @@ const PALETTE = {
 };
 
 const ChartTooltip = ({ active, payload, label }: any) => {
-  const { money } = useApp();
+  const money = useMoney();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-md border border-border bg-popover px-3 py-2.5 text-xs ">
@@ -47,7 +47,7 @@ const Legend = ({ c }: { c: typeof PALETTE }) => (
 );
 
 export const TrendChart = ({ data, className = "" }: { data: TrendPoint[]; className?: string }) => {
-  const { money } = useApp();
+  const money = useMoney();
   const c = PALETTE;
   const tick = { fill: c.muted, fontSize: 12, fontFamily: "JetBrains Mono, monospace" };
   return (

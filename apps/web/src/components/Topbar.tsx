@@ -1,13 +1,13 @@
-import { Loader2, Moon, Sun, Database, Wifi } from "lucide-react";
+import { Loader2, Moon, Sun, Database, Menu } from "lucide-react";
 import { Button } from "./ui/button";
 import { useApp } from "../context/AppContext";
-import { useOverview, useLoadSynthetic } from "../hooks/queries";
+import { useProviders, useLoadSynthetic } from "../hooks/queries";
 import { Currency } from "../lib/api";
 import { useSaveSettings } from "../hooks/queries";
 import { cn } from "../lib/utils";
 
 const CurrencyToggle = () => {
-  const { settings, money } = useApp();
+  const { settings } = useApp();
   const save = useSaveSettings();
   if (!settings) return null;
   const active = settings.currency;
@@ -48,29 +48,31 @@ const ThemeToggle = () => {
 };
 
 const ProxyStatus = () => {
-  const { data } = useOverview();
-  const hasData = data?.has_data;
+  const { data } = useProviders();
+  const receiving = data?.some((provider) => provider.status === "receiving_traffic") ?? false;
+  const demoOnly = Boolean(data?.length) && data?.every((provider) => provider.status === "demo_only" || provider.status === "stubbed");
+  const label = !data ? "Status unavailable" : receiving ? "Receiving traffic" : demoOnly ? "Demo data only" : "Waiting for traffic";
   return (
     <div
       data-testid="topbar-proxy-status"
       className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs"
     >
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-savings opacity-60" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-savings" />
-      </span>
-      <span className="hidden text-muted-foreground sm:inline">Proxy online</span>
-      <span className="hidden font-mono text-muted-foreground sm:inline">:8000</span>
-      {hasData === false && <span className="hidden font-mono text-muted-foreground md:inline">· listening</span>}
+      <span className={cn("h-2 w-2 rounded-full", receiving ? "bg-savings" : "bg-muted-foreground")} />
+      <span className="hidden text-muted-foreground sm:inline">{label}</span>
     </div>
   );
 };
 
-export const Topbar = () => {
+export const Topbar = ({ onMenuClick, menuOpen }: { onMenuClick: () => void; menuOpen: boolean }) => {
   const load = useLoadSynthetic();
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/80 px-6 backdrop-blur-md lg:px-8">
-      <ProxyStatus />
+      <div className="flex min-w-0 items-center gap-3">
+        <button type="button" onClick={onMenuClick} aria-label="Open navigation menu" aria-expanded={menuOpen} aria-controls="sidebar-navigation" className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground md:hidden">
+          <Menu className="h-4 w-4" />
+        </button>
+        <ProxyStatus />
+      </div>
       <div className="flex items-center gap-2.5">
         <Button
           size="sm"

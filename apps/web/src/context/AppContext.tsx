@@ -2,13 +2,15 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useState 
 import { useSettings } from "../hooks/queries";
 import type { Currency, Settings } from "../lib/api";
 import { formatMoney } from "../lib/format";
-import { applyTheme, getPreference, resolveTheme, setPreference, subscribeToSystemTheme, THEME_CHANGE_EVENT } from "../lib/theme";
+import { applyTheme, getPreference, resolveTheme, setPreference, subscribeToSystemTheme, THEME_CHANGE_EVENT, ThemePreference } from "../lib/theme";
 
 type Theme = "light" | "dark";
 
 interface AppCtx {
   theme: Theme;
   setTheme: (t: Theme) => void;
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
   settings?: Settings;
   currency: Currency;
   money: (usd: number, short?: boolean) => string;
@@ -38,10 +40,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const setTheme = useCallback((nextTheme: Theme) => setPreference(nextTheme), []);
+  const setThemePreference = useCallback((preference: ThemePreference) => setPreference(preference), []);
 
   const money = useCallback((usd: number, short = false) => formatMoney(usd, currency, rate, short), [currency, rate]);
 
-  return <Ctx.Provider value={{ theme, setTheme, settings, currency, money }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ theme, setTheme, themePreference: getPreference(), setThemePreference, settings, currency, money }}>{children}</Ctx.Provider>;
 };
 
 export const useApp = () => {
@@ -49,3 +52,5 @@ export const useApp = () => {
   if (!v) throw new Error("useApp outside AppProvider");
   return v;
 };
+
+export const useMoney = () => useApp().money;

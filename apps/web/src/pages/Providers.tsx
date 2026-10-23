@@ -6,12 +6,15 @@ import { PROXY_URLS, Provider } from "../lib/api";
 import { PROVIDER_NAME, formatInt, timeAgo } from "../lib/format";
 import { cn } from "../lib/utils";
 import { PageSkeleton } from "./Overview";
+import { useState } from "react";
+import { copyToClipboard } from "../lib/clipboard";
+import { toast } from "sonner";
 
 const STATUS: Record<Provider["status"], { label: string; dot: string; ring: string }> = {
   receiving_traffic: { label: "Receiving traffic", dot: "bg-savings", ring: "ring-savings/20" },
-  synthetic_only: { label: "Demo data only", dot: "bg-muted-foreground", ring: "" },
+  demo_only: { label: "Demo data only", dot: "bg-muted-foreground", ring: "" },
   waiting: { label: "Waiting for first request", dot: "border border-muted-foreground", ring: "" },
-  stubbed: { label: "Stubbed — coming later", dot: "border border-dashed border-muted-foreground", ring: "" },
+  stubbed: { label: "Coming soon", dot: "border border-muted-foreground", ring: "" },
 };
 
 const UPSTREAM: Record<string, string> = {
@@ -31,6 +34,20 @@ const Stat = ({ label, value, testId }: { label: string; value: string; testId: 
 
 const ProviderCard = ({ p }: { p: Provider }) => {
   const s = STATUS[p.status];
+  const [snippetCopied, setSnippetCopied] = useState(false);
+  const baseUrl = PROXY_URLS[p.id];
+  const snippet = p.id === "openai"
+    ? `curl "${baseUrl}/chat/completions" \\\n  -H "Authorization: Bearer $OPENAI_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'`
+    : `curl "${baseUrl}/v1/payment_intents" \\\n  -u "$STRIPE_TEST_KEY:"`;
+  const copySnippet = async () => {
+    try {
+      await copyToClipboard(snippet);
+      setSnippetCopied(true);
+      window.setTimeout(() => setSnippetCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy the setup snippet. Select and copy it instead.");
+    }
+  };
   return (
     <Card testId={`provider-card-${p.id}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-6 py-4">
@@ -65,17 +82,39 @@ const ProviderCard = ({ p }: { p: Provider }) => {
               <p className="mb-2 text-xs text-muted-foreground">Proxy base URL · upstream: {UPSTREAM[p.upstream_mode ?? "test"]}</p>
               <CopyField value={PROXY_URLS[p.id]} testId={`provider-${p.id}-copy-url-button`} />
             </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-xs font-medium">Quick start · cURL</h3>
+                <button type="button" onClick={() => void copySnippet()} className="text-xs text-primary hover:underline" aria-live="polite">{snippetCopied ? "Copied" : "Copy snippet"}</button>
+              </div>
+              <pre className="overflow-x-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed"><code>{snippet}</code></pre>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Use your own provider key in the environment variable shown. Overcall forwards it to the provider and does not store it.
+                {p.id === "stripe" && " Use a Stripe test key only; live keys are rejected."}
+              </p>
+            </div>
             <dl className="grid grid-cols-2 gap-5 sm:grid-cols-4">
               <Stat label="Via proxy" value={formatInt(p.counts.proxy)} testId={`provider-${p.id}-proxy-count`} />
-              <Stat label="Synthetic" value={formatInt(p.counts.synthetic)} testId={`provider-${p.id}-synthetic-count`} />
+              <Stat label="Demo data" value={formatInt(p.counts.demo)} testId={`provider-${p.id}-synthetic-count`} />
               <Stat label="Open issues" value={formatInt(p.issue_count)} testId={`provider-${p.id}-issue-count`} />
               <Stat label="Last proxied" value={timeAgo(p.last_proxy_request_at)} testId={`provider-${p.id}-last-seen`} />
             </dl>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">{p.pricing.notes}</p>
+          <div className="rounded-md border border-border bg-background p-4">
+            <p className="text-sm font-medium">AWS support is coming soon.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{p.pricing.notes}</p>
+          </div>
         )}
         <PricingTable provider={p} />
+        {p.id !== "aws" && (
+          <section className="border-t border-divider pt-5" aria-labelledby={`provider-${p.id}-keys`}>
+            <h3 id={`provider-${p.id}-keys`} className="text-sm font-medium">{PROVIDER_NAME[p.id]} ingest keys</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This API version does not provide ingest-key creation, listing, or revocation endpoints. Provider credentials in the setup snippet are forwarded only; they are not Overcall ingest keys.
+            </p>
+          </section>
+        )}
       </div>
     </Card>
   );

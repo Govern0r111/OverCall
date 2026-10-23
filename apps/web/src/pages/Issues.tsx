@@ -1,12 +1,12 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { FlaskConical, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { PageHeader, Card } from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { IssueRow } from "../components/IssueRow";
 import { useIssues, useOverview } from "../hooks/queries";
-import { useApp } from "../context/AppContext";
+import { useApp, useMoney } from "../context/AppContext";
 import { PageSkeleton } from "./Overview";
 
 const FILTERS = [
@@ -29,15 +29,41 @@ const FilterSelect = ({ f, value, onChange }: { f: (typeof FILTERS)[number]; val
 );
 
 export default function Issues() {
-  const [filters, setFilters] = useState({ provider: "all", severity: "all", tier: "all" });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = {
+    provider: searchParams.get("provider") ?? "all",
+    severity: searchParams.get("severity") ?? "all",
+    tier: searchParams.get("tier") ?? "all",
+  };
+  const openId = searchParams.get("open");
   const overview = useOverview();
   const { data: issues, isLoading } = useIssues(filters);
-  const { money, settings } = useApp();
+  const money = useMoney();
+  const { settings } = useApp();
+  const visibleIssues = (issues ?? []).filter((issue) => settings?.experimental_enabled || !issue.experimental);
+
+  const setFilter = (key: keyof typeof filters, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === "all") next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
+  };
+  const toggleIssue = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (openId === id) next.delete("open");
+    else next.set("open", id);
+    setSearchParams(next, { replace: true });
+  };
+  const clearFilters = () => {
+    const next = new URLSearchParams();
+    if (openId) next.set("open", openId);
+    setSearchParams(next, { replace: true });
+  };
 
   if (overview.isLoading || !overview.data) return <PageSkeleton />;
   if (!overview.data.has_data) return <EmptyState />;
 
-  const total = (issues ?? []).reduce((s, i) => s + i.projected_monthly_usd, 0);
+  const total = visibleIssues.reduce((s, i) => s + i.projected_monthly_usd, 0);
   const activeFilters = Object.values(filters).filter((v) => v !== "all").length;
 
   return (
@@ -49,10 +75,10 @@ export default function Issues() {
           Filter
         </div>
         {FILTERS.map((f) => (
-          <FilterSelect key={f.key} f={f} value={filters[f.key]} onChange={(v) => setFilters({ ...filters, [f.key]: v })} />
+          <FilterSelect key={f.key} f={f} value={filters[f.key]} onChange={(v) => setFilter(f.key, v)} />
         ))}
         <p data-testid="issues-summary" className="ml-auto text-sm text-muted-foreground">
-          <span className="font-mono text-foreground">{issues?.length ?? 0}</span> issues ·{" "}
+          <span className="font-mono text-foreground">{visibleIssues.length}</span> issues ·{" "}
           <span className="font-mono text-savings">{money(total)}</span>/mo
         </p>
       </div>
@@ -65,12 +91,13 @@ export default function Issues() {
       <Card testId="issues-list">
         {isLoading ? (
           <p className="px-5 py-8 text-sm text-muted-foreground">Loading issues…</p>
-        ) : issues?.length ? (
-          <ul>{issues.map((i, idx) => <IssueRow key={i.id} issue={i} index={idx} />)}</ul>
+        ) : visibleIssues.length ? (
+          <ul>{visibleIssues.map((i, idx) => <IssueRow key={i.id} issue={i} index={idx} open={openId === i.id} onToggle={() => toggleIssue(i.id)} />)}</ul>
         ) : (
-          <p data-testid="issues-empty-filtered" className="px-5 py-10 text-sm text-muted-foreground">
-            No issues match these filters. Try widening the provider, severity or tier.
-          </p>
+          <div className="px-5 py-10 text-sm text-muted-foreground">
+            <p data-testid="issues-empty-filtered">No issues match these filters. Try widening the provider, severity or tier.</p>
+            {activeFilters > 0 && <button type="button" onClick={clearFilters} className="mt-3 text-primary hover:underline">Clear filters</button>}
+          </div>
         )}
       </Card>
     </div>

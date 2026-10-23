@@ -1,17 +1,26 @@
 import axios from "axios";
-import { supabase } from "./supabase";
+import { authClient, hasDemoSession } from "../auth/authClient";
 import { env } from "./env";
+import { toast } from "sonner";
 
 export const BACKEND_URL = env.backendUrl;
-export const api = axios.create({ baseURL: `${BACKEND_URL}/api` });
+export const api = axios.create({ baseURL: import.meta.env.DEV ? "/api" : `${BACKEND_URL}/api` });
 api.interceptors.request.use(async (config) => {
-  if (supabase) {
-    const { data } = await supabase.auth.getSession();
-    if (data.session?.access_token) {
-      config.headers.Authorization = `Bearer ${data.session.access_token}`;
+  if (hasDemoSession()) config.baseURL = `${window.location.origin}/api`;
+  const token = await authClient.getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+api.interceptors.response.use((response) => response, async (error: unknown) => {
+  if (axios.isAxiosError(error) && error.response?.status === 401 && !hasDemoSession()) {
+    try {
+      sessionStorage.setItem("overcall-session-ended", "1");
+      await authClient.logout();
+    } catch {
+      toast.error("Your session ended. Sign in again to continue.");
     }
   }
-  return config;
+  return Promise.reject(error);
 });
 
 export const PROXY_URLS = {
@@ -44,6 +53,7 @@ export interface LogEntry {
   timestamp: string;
   provider: string;
   endpoint: string;
+  method?: string;
   status: number;
   latency_ms: number;
   req_size: number;
@@ -53,6 +63,9 @@ export interface LogEntry {
   cost_usd: number;
   flagged_by: string[];
   issue_ids?: string[];
+  caller?: string | null;
+  model?: string | null;
+  req_hash?: string;
 }
 
 export interface Issue {
@@ -134,8 +147,8 @@ export interface Rule {
 
 export interface Provider {
   id: "openai" | "stripe" | "aws";
-  status: "receiving_traffic" | "synthetic_only" | "waiting" | "stubbed";
-  counts: { proxy: number; synthetic: number };
+  status: "receiving_traffic" | "demo_only" | "waiting" | "stubbed";
+  counts: { proxy: number; demo: number };
   last_proxy_request_at: string | null;
   issue_count: number;
   pricing: any;
