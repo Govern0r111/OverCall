@@ -1,0 +1,369 @@
+schema_version: 1
+source_checklist: docs/PLAN.md
+unchecked_rows_at_planning: 60
+group_counts:
+  frontend: 8
+  backend: 34
+  integration: 10
+  appendix_a: 8
+criteria:
+  - id: F2-01
+    source: "F2: Supabase email and Google auth work with VITE_AUTH_MODE=supabase"
+    plan: P7.6
+    task: T018
+    evidence: "Real account/provider result from user-controlled Supabase project"
+    gate: manual_external
+  - id: F3-01
+    source: "F3: npm run gen:api produces no diff on a clean checkout"
+    plan: P7.1
+    task: T013
+    evidence: "Repeat generation and clean git diff"
+    gate: local
+  - id: F4-01
+    source: "F4: Overview page matches overview.demo.json in both themes"
+    plan: P7.2
+    task: T014
+    evidence: "Approved fixture and both-theme visual/browser comparison"
+    gate: local_requires_fixture_source
+  - id: F4-02
+    source: "F4: Overview figures remain separate and are never added"
+    plan: P7.2
+    task: T014
+    evidence: "Distinct spend/reliability values and regression test"
+    gate: local
+  - id: F5-01
+    source: "F5: Tier 3 hidden unless enabled and badged whenever shown"
+    plan: P7.3
+    task: T015
+    evidence: "Enabled/disabled UI and settings boundary tests"
+    gate: local
+  - id: F6-01
+    source: "F6: Find a specific request quickly with filters on the 5000-row demo set"
+    plan: P7.4
+    task: T016
+    evidence: "Dataset identity, test, and recorded human timing"
+    gate: local_manual_timing
+  - id: F7-01
+    source: "F7: Each setup snippet matches shared fixture of actual proxy routes"
+    plan: P7.5
+    task: T017
+    evidence: "Shared route fixture and snippet parity test"
+    gate: local
+  - id: F7-02
+    source: "F7: Ingest key is displayed only once"
+    plan: P7.5
+    task: T017
+    evidence: "Key creation/list/revoke and one-time UI assertion"
+    gate: local
+  - id: B1-01
+    source: "B1: Uvicorn starts; /healthz and /readyz work"
+    plan: P1.1
+    task: T001
+    evidence: "Startup logs and HTTP status for both readiness endpoints"
+    gate: local
+  - id: B1-02
+    source: "B1: Migrations apply to Docker Postgres and development Supabase project"
+    plan: P1.1
+    task: "T001 + T002"
+    evidence: "Docker migration result and separately authorized Supabase migration result"
+    gate: local_docker_and_manual_external
+  - id: B1-03
+    source: "B1: Schema parity and no-body-column tests pass"
+    plan: P1.1
+    task: T001
+    evidence: "PostgreSQL schema parity and no-body tests"
+    gate: local_docker
+  - id: B1-04
+    source: "B1: CI grep finds no Mongo, Motor, supabase-py, or Emergent references"
+    plan: P1.1
+    task: T001
+    evidence: "Legacy dependency check and CI result"
+    gate: local
+  - id: B2-01
+    source: "B2: Cost is deterministic and each result carries basis and pricing version"
+    plan: P2.1
+    task: T003
+    evidence: "Pricing unit tests and persisted cost metadata"
+    gate: local
+  - id: B2-02
+    source: "B2: Old logs retain historical pricing versions"
+    plan: P2.1
+    task: T003
+    evidence: "Historical pricing regression test"
+    gate: local
+  - id: B2-03
+    source: "B2: Price files have retrieved_at and validate against schema"
+    plan: P2.1
+    task: T003
+    evidence: "Pricing fixture/schema validation"
+    gate: local
+  - id: B3-01
+    source: "B3: Generator is deterministic and ground truth is separate"
+    plan: P3.2
+    task: T005
+    evidence: "Repeat generation and independent truth file"
+    gate: local
+  - id: B3-02
+    source: "B3: Hard negatives exist for all seven rules"
+    plan: P3.2
+    task: T005
+    evidence: "Per-rule negative fixture coverage"
+    gate: local
+  - id: B3-03
+    source: "B3: small fixture is committed and validates against contract schema"
+    plan: P3.2
+    task: T005
+    evidence: "Git commit and schema validation"
+    gate: local_after_baseline_review
+  - id: B3-04
+    source: "B3: b3-frozen tag exists before any rule code is written"
+    plan: P3.1
+    task: T004
+    evidence: "History-backed baseline decision; no speculative tag"
+    gate: coordinator_decision
+  - id: B4-01
+    source: "B4: Rerun replaces issues atomically and leaves no partial state"
+    plan: P4.1
+    task: T006
+    evidence: "Transaction and failure-injection tests"
+    gate: local
+  - id: B4-02
+    source: "B4: Tier 1 rules pass unit and hard-negative tests"
+    plan: P4.1
+    task: T006
+    evidence: "Rule unit and hard-negative suite"
+    gate: local
+  - id: B4-03
+    source: "B4: Synthetic precision and recall reported per rule"
+    plan: P4.1
+    task: T006
+    evidence: "Per-rule metrics from deterministic synthetic data"
+    gate: local
+  - id: B4-04
+    source: "B4: Spend and reliability totals stored separately"
+    plan: P4.1
+    task: T006
+    evidence: "Schema/query tests for distinct totals"
+    gate: local
+  - id: B5-01
+    source: "B5: All seven rules share one interface and respect settings thresholds"
+    plan: P4.2
+    task: T007
+    evidence: "Rule interface and threshold tests"
+    gate: local
+  - id: B5-02
+    source: "B5: Tier 3 is gated and always includes confidence"
+    plan: P4.2
+    task: T007
+    evidence: "Tier 3 disabled/enabled and confidence tests"
+    gate: local
+  - id: B5-03
+    source: "B5: Synthetic precision and recall reported per rule"
+    plan: P4.2
+    task: T007
+    evidence: "Per-rule metrics from deterministic synthetic data"
+    gate: local
+  - id: B6-01
+    source: "B6: Isolation and gating tests pass"
+    plan: P5.2
+    task: T009
+    evidence: "Per-endpoint authenticated tenant isolation/gating tests"
+    gate: local_docker
+  - id: B6-02
+    source: "B6: Every response shape equals its corresponding fixture"
+    plan: P5.2
+    task: T009
+    evidence: "Fixture comparison for each endpoint response"
+    gate: local
+  - id: B7-01
+    source: "B7: Proxy talks to mock upstream in-process without network"
+    plan: P6.1
+    task: T010
+    evidence: "ASGI transport integration test"
+    gate: local
+  - id: B7-02
+    source: "B7: Streaming, errors, and latency injection work"
+    plan: P6.1
+    task: T010
+    evidence: "In-process proxy scenarios"
+    gate: local
+  - id: B7-03
+    source: "B7: Mock upstream is unreachable from outside the process"
+    plan: P6.1
+    task: T010
+    evidence: "Route/network reachability test"
+    gate: local
+  - id: B8-01
+    source: "B8: Metadata-only row appears in about two seconds off request path"
+    plan: P6.2
+    task: T011
+    evidence: "Timed proxy persistence integration test"
+    gate: local_docker
+  - id: B8-02
+    source: "B8: Redaction and no-body sentinel tests pass"
+    plan: P6.2
+    task: T011
+    evidence: "Proxy redaction/no-body integration suite"
+    gate: local
+  - id: B9-01
+    source: "B9: Client receives stream chunks as they arrive without buffering"
+    plan: P6.3
+    task: T012
+    evidence: "Chunk timing/pass-through integration test"
+    gate: local
+  - id: B9-02
+    source: "B9: Usage uses final chunk or is estimated and labeled"
+    plan: P6.3
+    task: T012
+    evidence: "Final-usage and fallback-estimation tests"
+    gate: local
+  - id: B9-03
+    source: "B9: Disconnect does not leak connection and is still logged"
+    plan: P6.3
+    task: T012
+    evidence: "Disconnect/cancellation and metadata log tests"
+    gate: local
+  - id: B10-01
+    source: "B10: Ingest keys can be created/listed/used/revoked; plaintext never retrievable"
+    plan: P5.1
+    task: T008
+    evidence: "Lifecycle endpoint tests and one-time plaintext assertion"
+    gate: local
+  - id: B10-02
+    source: "B10: Isolation tests pass for every endpoint"
+    plan: P5.1
+    task: T008
+    evidence: "Cross-tenant endpoint matrix"
+    gate: local_docker
+  - id: B11-01
+    source: "B11: Fuzz redaction finds no secret leak on any code path"
+    plan: P11.1
+    task: T025
+    evidence: "Fuzz corpus/results and logs"
+    gate: local
+  - id: B11-02
+    source: "B11: Proxy overhead measured and F1 FAQ updated from measurement"
+    plan: P11.1
+    task: T025
+    evidence: "Reproducible benchmark and FAQ diff"
+    gate: local
+  - id: B11-03
+    source: "B11: Retention/cap works and DB budget holds in seven-day synthetic soak"
+    plan: P11.2
+    task: T026
+    evidence: "Retention/cap tests and full seven-day soak record"
+    gate: seven_day_soak
+  - id: B11-04
+    source: "B11: CI blocks secrets, vulnerable dependencies, and contract drift"
+    plan: P11.3
+    task: T027
+    evidence: "Workflow configuration and CI results"
+    gate: local_and_hosted_ci
+  - id: I1-01
+    source: "I1: E2E happy path passes locally and in CI"
+    plan: P8.1
+    task: T019
+    evidence: "Real API/browser local E2E plus hosted CI"
+    gate: local_and_hosted_ci
+  - id: I1-02
+    source: "I1: Real signed-in account never sees mock data"
+    plan: P8.1
+    task: T020
+    evidence: "Real Supabase session/browser evidence"
+    gate: manual_external
+  - id: I2-01
+    source: "I2: Two datasets and two reports are never blended"
+    plan: P9.1
+    task: T021
+    evidence: "Separate dataset/report provenance and isolation tests"
+    gate: local
+  - id: I2-02
+    source: "I2: Labels were committed before first real evaluation"
+    plan: P9.2
+    task: T022
+    evidence: "Git history timestamp before authorized real run"
+    gate: authorized_real_dataset
+  - id: I2-03
+    source: "I2: Settings shows separate synthetic/real accuracy rows and sample sizes"
+    plan: P9.1
+    task: T021
+    evidence: "Settings UI test with distinct provenance/sample sizes"
+    gate: local
+  - id: I2-04
+    source: "I2: validation/README.md analyzes misses and false alarms"
+    plan: P9.2
+    task: T022
+    evidence: "Written analysis grounded in authorized evaluation"
+    gate: authorized_real_dataset
+  - id: I3-01
+    source: "I3: Production smoke test passes"
+    plan: P10.2
+    task: T024
+    evidence: "Production endpoint smoke output"
+    gate: production_access
+  - id: I3-02
+    source: "I3: Keep-alive runs and DB-size alert works in operation"
+    plan: P10.2
+    task: T024
+    evidence: "Observed operational alert and keep-alive"
+    gate: production_access
+  - id: I3-03
+    source: "I3: No secret in repo, Vercel public variables, or logs"
+    plan: P10.2
+    task: T024
+    evidence: "Separate repo scan and authorized dashboard/log review"
+    gate: production_access
+  - id: I3-04
+    source: "I3: Always-on API upgrade path is a one-line render.yaml change"
+    plan: P10.1
+    task: T023
+    evidence: "Config diff showing one-line path and local validation"
+    gate: local
+  - id: APP-A-01
+    source: "Appendix A: Module done-when list is fully checked in PR description"
+    plan: P12.1
+    task: T029
+    evidence: "Actual PR description checklist"
+    gate: pull_request_required
+  - id: APP-A-02
+    source: "Appendix A: Module tests green; lint, types, and formatting clean"
+    plan: P12.1
+    task: T028
+    evidence: "Per-module test/lint/type/format outputs"
+    gate: local
+  - id: APP-A-03
+    source: "Appendix A: check-contract is green"
+    plan: P12.1
+    task: T028
+    evidence: "Contract fixture/drift/generated-type check"
+    gate: local
+  - id: APP-A-04
+    source: "Appendix A: Gitleaks green for code, fixtures, logs, screenshots"
+    plan: P12.1
+    task: T028
+    evidence: "Gitleaks report covering changed artifact classes"
+    gate: local
+  - id: APP-A-05
+    source: "Appendix A: Security rules, redaction, and no-body tests pass"
+    plan: P12.1
+    task: T028
+    evidence: "Security checklist and relevant tests"
+    gate: local
+  - id: APP-A-06
+    source: "Appendix A: New pages axe-clean, focus visible, keyboard operable"
+    plan: P12.1
+    task: T028
+    evidence: "Axe and keyboard/focus browser tests"
+    gate: local
+  - id: APP-A-07
+    source: "Appendix A: Touched README, docs/DEPLOY.md, and contract README updated"
+    plan: P12.1
+    task: T028
+    evidence: "Documentation diff review"
+    gate: local
+  - id: APP-A-08
+    source: "Appendix A: Module builds/tests without importing the other side"
+    plan: P12.1
+    task: T028
+    evidence: "Independent module build/test commands"
+    gate: local

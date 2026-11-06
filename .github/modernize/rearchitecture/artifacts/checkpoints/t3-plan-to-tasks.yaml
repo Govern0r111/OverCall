@@ -1,0 +1,133 @@
+schema_version: 1
+source_plan: .github/modernize/rearchitecture/artifacts/t3-teamlead-plan.md
+plan_items:
+  - id: P1.1
+    title: Local application and database foundation
+    tasks: [T001, T002]
+    depends_on: []
+    criteria: [B1-01, B1-02, B1-03, B1-04]
+  - id: P2.1
+    title: Pricing and historical pricing evidence
+    tasks: [T003]
+    depends_on: []
+    criteria: [B2-01, B2-02, B2-03]
+  - id: P3.1
+    title: Synthetic baseline disposition
+    tasks: [T004]
+    depends_on: []
+    criteria: [B3-04]
+  - id: P3.2
+    title: Synthetic generator and fixture verification
+    tasks: [T005]
+    depends_on: [P3.1]
+    criteria: [B3-01, B3-02, B3-03]
+  - id: P4.1
+    title: Detection and Tier 1 rules
+    tasks: [T006]
+    depends_on: [P3.2]
+    criteria: [B4-01, B4-02, B4-03, B4-04]
+  - id: P4.2
+    title: Tier 2 and Tier 3 rules
+    tasks: [T007]
+    depends_on: [P4.1, P3.2]
+    criteria: [B5-01, B5-02, B5-03]
+  - id: P5.1
+    title: Authenticated ingest-key lifecycle
+    tasks: [T008]
+    depends_on: [P1.1]
+    criteria: [B10-01, B10-02]
+  - id: P5.2
+    title: Versioned API isolation and fixture equality
+    tasks: [T009]
+    depends_on: [P1.1, P5.1]
+    criteria: [B6-01, B6-02]
+  - id: P6.1
+    title: In-process mock upstream
+    tasks: [T010]
+    depends_on: []
+    criteria: [B7-01, B7-02, B7-03]
+  - id: P6.2
+    title: Proxy metadata persistence and redaction
+    tasks: [T011]
+    depends_on: [P1.1, P5.1, P6.1]
+    criteria: [B8-01, B8-02]
+  - id: P6.3
+    title: SSE pass-through and disconnect behavior
+    tasks: [T012]
+    depends_on: [P6.1, P6.2]
+    criteria: [B9-01, B9-02, B9-03]
+  - id: P7.1
+    title: Frontend generated API types
+    tasks: [T013]
+    depends_on: [P5.2]
+    criteria: [F3-01]
+  - id: P7.2
+    title: Overview fixture and figure semantics
+    tasks: [T014]
+    depends_on: [P7.1]
+    criteria: [F4-01, F4-02]
+  - id: P7.3
+    title: Tier 3 issue visibility
+    tasks: [T015]
+    depends_on: [P4.2, P7.1]
+    criteria: [F5-01]
+  - id: P7.4
+    title: Timed log search
+    tasks: [T016]
+    depends_on: [P5.2, P7.1]
+    criteria: [F6-01]
+  - id: P7.5
+    title: Provider route snippets and key display
+    tasks: [T017]
+    depends_on: [P5.1, P6.1, P6.3]
+    criteria: [F7-01, F7-02]
+  - id: P7.6
+    title: Supabase email and Google auth manual check
+    tasks: [T018]
+    depends_on: []
+    criteria: [F2-01]
+  - id: P8.1
+    title: Real backend browser integration
+    tasks: [T019, T020]
+    depends_on: [P5.1, P5.2, P6.2, P6.3, P7.1]
+    criteria: [I1-01, I1-02]
+  - id: P9.1
+    title: Separate accuracy dataset/report presentation
+    tasks: [T021]
+    depends_on: [P3.2, P4.2, P7.1]
+    criteria: [I2-01, I2-03]
+  - id: P9.2
+    title: Authorized real-data evaluation and analysis
+    tasks: [T022]
+    depends_on: [P9.1]
+    criteria: [I2-02, I2-04]
+  - id: P10.1
+    title: Deployment configuration reconciliation
+    tasks: [T023]
+    depends_on: [P1.1]
+    criteria: [I3-04]
+  - id: P10.2
+    title: Production deployment verification
+    tasks: [T024]
+    depends_on: [P10.1]
+    criteria: [I3-01, I3-02, I3-03]
+  - id: P11.1
+    title: Fuzz redaction and measured overhead
+    tasks: [T025]
+    depends_on: [P6.2, P6.3]
+    criteria: [B11-01, B11-02]
+  - id: P11.2
+    title: Retention/cap and seven-day soak
+    tasks: [T026]
+    depends_on: [P1.1, P6.2]
+    criteria: [B11-03]
+  - id: P11.3
+    title: CI security/dependency/contract gates
+    tasks: [T027]
+    depends_on: [P5.2, P7.1, P11.1]
+    criteria: [B11-04]
+  - id: P12.1
+    title: Module closeout and PR gate
+    tasks: [T028, T029]
+    depends_on: [P1.1, P2.1, P3.2, P4.1, P4.2, P5.1, P5.2, P6.1, P6.2, P6.3, P7.1, P7.2, P7.3, P7.4, P7.5, P7.6, P8.1, P9.1, P9.2, P10.1, P10.2, P11.1, P11.2, P11.3]
+    criteria: [APP-A-01, APP-A-02, APP-A-03, APP-A-04, APP-A-05, APP-A-06, APP-A-07, APP-A-08]
