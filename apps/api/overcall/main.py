@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from starlette.responses import Response
 
+from .auth.jwt import SupabaseJWTVerifier
 from .config import Settings, get_settings
 from .db.engine import create_database_engine
 from .errors import OvercallError, register_error_handlers, unhandled_error_handler
@@ -59,6 +60,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.engine = None
+    app.state.jwt_verifier = SupabaseJWTVerifier(
+        supabase_url=app_settings.supabase_url,
+        jwt_secret=(
+            app_settings.supabase_jwt_secret.get_secret_value()
+            if app_settings.supabase_jwt_secret is not None
+            else None
+        ),
+        allowed_algorithms=app_settings.jwt_allowed_algorithms,
+    )
     register_error_handlers(app)
     app.include_router(v1_router)
     app.include_router(proxy_router)

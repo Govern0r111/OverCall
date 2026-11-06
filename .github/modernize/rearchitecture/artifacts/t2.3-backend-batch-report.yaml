@@ -1,0 +1,82 @@
+batch_id: "t2.3"
+completed_tasks:
+  - "t2.3"
+blocked_tasks: []
+files_changed:
+  t2.3:
+    - file: "apps/api/overcall/auth/jwt.py"
+      change_type: "created"
+      description: "Added cached Supabase JWKS verification for RS256/ES256 and optional configured HS256."
+    - file: "apps/api/overcall/config.py"
+      change_type: "modified"
+      description: "Added allow-listed signing algorithm configuration and legacy-secret strength validation."
+    - file: "apps/api/overcall/deps.py"
+      change_type: "modified"
+      description: "Replaced the unauthenticated stub with Bearer token validation and UUID UserContext construction."
+    - file: "apps/api/overcall/main.py"
+      change_type: "modified"
+      description: "Configured the verifier on each FastAPI app instance."
+    - file: "apps/api/pyproject.toml"
+      change_type: "modified"
+      description: "Declared pinned PyJWT crypto support."
+    - file: "apps/api/requirements.txt"
+      change_type: "modified"
+      description: "Added the pinned PyJWT crypto dependency for CI/runtime installs."
+    - file: "apps/api/.env.example"
+      change_type: "modified"
+      description: "Documented the default allowed Supabase signing algorithms."
+    - file: "apps/api/tests/unit/test_jwt.py"
+      change_type: "created"
+      description: "Covered RS256/ES256, legacy HS256 gating, claims, signature failures, key refresh, and cached fallback."
+    - file: "apps/api/tests/security/test_route_auth.py"
+      change_type: "created"
+      description: "Verified all 18 /v1 operations reject missing tokens and a valid RS256 token authenticates /v1/me."
+    - file: "docs/PLAN.md"
+      change_type: "modified"
+      description: "Checked the directly verified B10 missing-token route criterion with evidence note."
+upstream_artifacts_consumed:
+  t2.3:
+    - artifact: ".github/modernize/rearchitecture/artifacts/t1-pm.md"
+      used_for: "B10 requirement boundaries and checklist acceptance criteria."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1-backend.md"
+      used_for: "Mounted /v1 routes and the current fail-closed get_current_user seam."
+evidence_mapping:
+  t2.3:
+    - upstream: ".github/modernize/rearchitecture/artifacts/t1-pm.md#B10"
+      output: "apps/api/overcall/auth/jwt.py; apps/api/overcall/deps.py"
+      evidence: "JWT unit tests pass; route tests verify all 18 /v1 operations reject missing tokens."
+    - upstream: ".github/modernize/rearchitecture/artifacts/t2.1-backend.md#Runtime and Route Evidence"
+      output: "apps/api/tests/security/test_route_auth.py"
+      evidence: "The mounted /v1/me route returns 200 for a locally signed RS256 token."
+traceability:
+  - requirement: "B10 Supabase current-user JWT verification"
+    plan_item: "docs/PLAN.md#B10"
+    task: "t2.3"
+    files:
+      - "apps/api/overcall/auth/jwt.py"
+      - "apps/api/overcall/deps.py"
+      - "apps/api/overcall/main.py"
+      - "apps/api/tests/unit/test_jwt.py"
+      - "apps/api/tests/security/test_route_auth.py"
+    status: "completed"
+  - requirement: "B10 no /v1 route succeeds without a valid token"
+    plan_item: "docs/PLAN.md#B10 Done when"
+    task: "t2.3"
+    files:
+      - "apps/api/tests/security/test_route_auth.py"
+      - "docs/PLAN.md"
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: "INFO"
+    message: "Two PostgreSQL-specific integration tests skipped because TEST_DATABASE_URL was not configured."
+  - severity: "INFO"
+    message: "External Supabase JWKS/provider verification was not performed because project credentials were unavailable."
+test_results:
+  t2.3:
+    command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests"
+    passed: 95
+    failed: 0
+    skipped: 2
+    failures: []

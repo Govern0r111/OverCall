@@ -17,7 +17,7 @@ export async function startDemoApi(): Promise<void> {
           data.request instanceof Request
             ? data.request
             : null;
-        if (request && new URL(request.url).pathname.startsWith("/api/")) defaults.error();
+        if (request && new URL(request.url).pathname.startsWith("/v1/")) defaults.error();
         else frame.passthrough();
       },
     }).then(() => undefined).catch((error: unknown) => {

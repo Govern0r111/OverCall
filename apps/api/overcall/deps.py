@@ -10,6 +10,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth.ingest_keys import hash_ingest_key
+from .auth.jwt import JWTVerificationError, SupabaseJWTVerifier
 from .db.models import IngestKey
 from .db.repos import IngestKeyRepository
 from .errors import OvercallError
@@ -42,9 +43,27 @@ async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def get_current_user() -> UserContext:
-    """Authentication seam for B10; production JWT verification replaces this dependency."""
-    raise OvercallError("unauthenticated", 401, "Sign in to continue.")
+async def get_current_user(request: Request) -> UserContext:
+    """Verify a Supabase access token before exposing its tenant identity to API routes."""
+    authorization = request.headers.get("authorization")
+    if authorization is None:
+        raise OvercallError("unauthenticated", 401, "Sign in to continue.")
+
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise OvercallError("unauthenticated", 401, "Sign in to continue.")
+
+    verifier: SupabaseJWTVerifier = request.app.state.jwt_verifier
+    try:
+        claims = await verifier.verify(parts[1])
+        user_id = UUID(claims["sub"])
+    except (JWTVerificationError, KeyError, TypeError, ValueError) as exc:
+        raise OvercallError(
+            "invalid_token", 401, "Your access token is invalid or expired. Sign in again."
+        ) from exc
+
+    email = claims.get("email")
+    return UserContext(user_id=user_id, email=email if isinstance(email, str) else None)
 
 
 async def require_ingest_key_header(request: Request) -> str:

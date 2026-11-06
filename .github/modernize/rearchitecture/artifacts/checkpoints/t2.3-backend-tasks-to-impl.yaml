@@ -1,0 +1,73 @@
+metadata:
+  generated: "2026-11-06"
+  source_tasks: "Task assignment t2.3 and docs/PLAN.md#B10"
+  last_updated: "2026-11-06"
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+tasks:
+  - task_id: "t2.3"
+    description: "Implement and test repo-supported current-user authentication required by B10"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/api/overcall/auth/jwt.py"
+          changes:
+            - change_type: "added"
+              description: "Implemented Supabase JWKS JWT verification with configured algorithms and cache refresh/fallback."
+        - file: "apps/api/overcall/deps.py"
+          changes:
+            - change_type: "modified"
+              description: "Verified Bearer tokens and mapped the UUID subject into UserContext."
+        - file: "apps/api/tests/unit/test_jwt.py"
+          changes:
+            - change_type: "added"
+              description: "Added JWT acceptance/rejection, claim, algorithm, and cache tests."
+        - file: "apps/api/tests/security/test_route_auth.py"
+          changes:
+            - change_type: "added"
+              description: "Added full /v1 missing-token walk and signed-token runtime verification."
+        - file: "docs/PLAN.md"
+          changes:
+            - change_type: "modified"
+              description: "Checked the verified B10 missing-token criterion."
+    verification:
+      build_passed: true
+      test_results:
+        command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests"
+        passed: 95
+        failed: 0
+        skipped: 2
+        failures: []
+      notes: "Ruff and OpenAPI drift check passed. The two skips require TEST_DATABASE_URL; live Supabase provider verification was not available."
+    upstream_trace:
+      plan_item: "B10"
+      requirements:
+        - "Supabase JWT signature and required claims verification."
+        - "Every /v1 operation rejects requests without valid credentials."
+      full_trace: "docs/PLAN.md#B10 → t2.3 → apps/api/overcall/auth/jwt.py, apps/api/overcall/deps.py, and auth tests"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-t2.3-B10-auth"
+    requirement: "B10 Supabase current-user JWT verification"
+    plan_phase: "Integration remediation"
+    plan_item: "B10"
+    tasks:
+      - "t2.3"
+    files:
+      - "apps/api/overcall/auth/jwt.py"
+      - "apps/api/overcall/deps.py"
+      - "apps/api/tests/unit/test_jwt.py"
+      - "apps/api/tests/security/test_route_auth.py"
+    status: "complete"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "Two PostgreSQL tests skipped without TEST_DATABASE_URL."
+    - "No live Supabase project credentials were available for provider/JWKS verification."
+  blocking_issues: []

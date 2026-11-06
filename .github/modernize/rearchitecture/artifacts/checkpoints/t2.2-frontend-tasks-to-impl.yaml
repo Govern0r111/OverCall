@@ -1,0 +1,84 @@
+metadata:
+  generated: "2026-11-06T14:07:23Z"
+  source_tasks: "Task assignment t2.2"
+  last_updated: "2026-11-06T14:07:23Z"
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+tasks:
+  - task_id: "t2.2"
+    description: "Align browser API and proxy URLs with the backend route contract and verify integration"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/web/src/lib/api.ts"
+          change_type: "modified"
+          description: "Set the versioned API base path and mounted proxy URL bases."
+        - file: "apps/web/src/hooks/queries.ts"
+          change_type: "modified"
+          description: "Align versioned API endpoint suffixes."
+        - file: "apps/web/vite.config.ts"
+          change_type: "modified"
+          description: "Forward /v1 and /proxy unchanged to FastAPI."
+        - file: "apps/web/src/mocks/handlers.ts"
+          change_type: "modified"
+          description: "Serve demo API requests under /v1."
+        - file: "apps/web/src/mocks/handlers.test.ts"
+          change_type: "modified"
+          description: "Exercise demo handlers at the versioned paths."
+        - file: "apps/web/src/mocks/startDemoApi.ts"
+          change_type: "modified"
+          description: "Fail unhandled /v1 demo requests."
+        - file: "apps/web/src/lib/api.test.ts"
+          change_type: "added"
+          description: "Assert API base and proxy URLs."
+        - file: "apps/web/e2e/app.spec.ts"
+          change_type: "modified"
+          description: "Assert demo API routing and proxy URL shape."
+        - file: "apps/web/e2e/landing.spec.ts"
+          change_type: "modified"
+          description: "Recognize versioned API/proxy paths in the no-network assertion."
+        - file: "docs/PLAN.md"
+          change_type: "modified"
+          description: "Check the directly verified demo-with-backend-stopped criterion."
+    verification:
+      build_passed: true
+      test_results:
+        command: "npm test; npm run test:e2e -- e2e/app.spec.ts e2e/landing.spec.ts; apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests/contract/test_v1_contract.py"
+        passed: 45
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Also passed frontend build, repository lint, backend OpenAPI drift check (17 versioned paths), local Vite proxy probes (/v1/me and /proxy/openai/v1/models both returned expected 401), and git diff --check. Expanded ESLint found one unchanged pre-existing no-explicit-any at apps/web/src/lib/api.ts:158. See t2.2-frontend.md for full evidence and DTO limitation."
+    upstream_trace:
+      plan_item: "docs/PLAN.md#3.3 REST API; #4C I1"
+      requirements: []
+      full_trace: "backend route contract → browser API base and endpoint paths → Vite proxy + MSW route paths → unit/E2E and local FastAPI proxy probes"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-t2.2"
+    requirement: "Browser URL and proxy route alignment"
+    plan_phase: "Integration remediation"
+    plan_item: "docs/PLAN.md#4C I1"
+    tasks:
+      - "t2.2"
+    files:
+      - "apps/web/src/lib/api.ts"
+      - "apps/web/src/hooks/queries.ts"
+      - "apps/web/vite.config.ts"
+      - "apps/web/src/mocks/handlers.ts"
+      - "apps/web/e2e/app.spec.ts"
+      - "docs/PLAN.md"
+    status: "complete"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "Response DTO mismatches remain; signed-in UI integration is not claimed."
+    - "Expanded ESLint found an unchanged pre-existing @typescript-eslint/no-explicit-any at apps/web/src/lib/api.ts:158."
+    - "No live Supabase account/provider credentials were used."
+  blocking_issues: []

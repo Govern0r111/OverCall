@@ -10,14 +10,24 @@ test.describe("demo app shell", () => {
 
   test("loads the demo without contacting the backend", async ({ page }) => {
     const backendRequests: string[] = [];
+    const apiPaths: string[] = [];
     page.on("request", (request) => {
-      if (new URL(request.url()).origin === "http://localhost:8000") backendRequests.push(request.url());
+      const url = new URL(request.url());
+      if (url.origin === "http://localhost:8000") backendRequests.push(request.url());
+      if (
+        url.origin === "http://127.0.0.1:4173" &&
+        (url.pathname.startsWith("/api/") || url.pathname.startsWith("/v1/"))
+      ) {
+        apiPaths.push(url.pathname);
+      }
     });
 
     await page.goto("/app");
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByTestId("topbar-proxy-status")).toContainText("Demo data only");
     expect(backendRequests).toEqual([]);
+    expect(apiPaths).toContain("/v1/overview");
+    expect(apiPaths.every((path) => path.startsWith("/v1/"))).toBe(true);
   });
 
   test("currency changes update shared dashboard formatting", async ({ page }) => {
@@ -52,6 +62,8 @@ test.describe("demo app shell", () => {
     await expect(page.getByTestId("provider-status-aws")).toContainText("Coming soon");
 
     const proxyUrl = await page.getByTestId("provider-openai-copy-url-button-value").textContent();
+    expect(proxyUrl).toMatch(/\/proxy\/openai\/v1$/);
+    expect(proxyUrl).not.toContain("/api/");
     const copyButton = page.getByTestId("provider-openai-copy-url-button");
     await copyButton.click();
     await expect(copyButton).toContainText("Copied");
@@ -103,7 +115,7 @@ test("issue filters and expanded rows are shareable and sample metadata is allow
   await row.focus();
   await page.keyboard.press("Enter");
   await expect(row).toHaveAttribute("aria-expanded", "true");
-  await expect(page).toHaveURL(/provider=openai.*severity=warning.*tier=1.*open=issue-duplicate-requests/);
+  await expect(page).toHaveURL(/provider=openai.*severity=warning.*tier=1.*open=11111111-1111-4111-8111-111111111111/);
   await page.keyboard.press("Space");
   await expect(row).toHaveAttribute("aria-expanded", "false");
   await page.keyboard.press("Space");
@@ -113,7 +125,7 @@ test("issue filters and expanded rows are shareable and sample metadata is allow
   await expect(sampleTable.getByText("POST")).toHaveCount(0);
   await expect(sampleTable.getByText(/content|body/i)).toHaveCount(0);
   await page.getByRole("link", { name: "View matching requests in logs" }).click();
-  await expect(page).toHaveURL(/\/app\/logs\?issue=issue-duplicate-requests/);
+  await expect(page).toHaveURL(/\/app\/logs\?issue=11111111-1111-4111-8111-111111111111/);
 });
 
 test("log search syncs to the URL and the metadata panel restores focus on Escape", async ({ page }) => {
@@ -128,12 +140,36 @@ test("log search syncs to the URL and the metadata panel restores focus on Escap
   const openDetails = page.getByRole("button", { name: /Open metadata for openai/ }).first();
   await openDetails.click();
   await expect(page.getByRole("dialog", { name: "Request metadata" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "issue-duplicate-requests" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "11111111-1111-4111-8111-111111111111" })).toBeVisible();
   const accessibilityResults = await new AxeBuilder({ page }).analyze();
   expect(accessibilityResults.violations, "Accessibility violations with the metadata panel open").toEqual([]);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Request metadata" })).toBeHidden();
   await expect(openDetails).toBeFocused();
+});
+
+test("signed-in dashboard consumes versioned responses across the overview-to-logs flow", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("overcall-mock-session", JSON.stringify({ email: "signed-in-demo@overcall.local" }));
+  });
+
+  await page.goto("/app");
+  await expect(page.getByTestId("hero-projected-savings")).toContainText("₹");
+  await page.getByTestId("nav-issues-link").click();
+  const issueRow = page.getByTestId("issue-row-expand-button-0");
+  await issueRow.focus();
+  await page.keyboard.press("Enter");
+  await expect(issueRow).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("issue-detail-0").getByRole("columnheader")).toHaveText([
+    "Time",
+    "Status",
+    "Size",
+    "Payload hash",
+    "Cost",
+  ]);
+  await page.goto("/app/logs?issue=11111111-1111-4111-8111-111111111111");
+  await expect(page).toHaveURL(/\/app\/logs\?issue=11111111-1111-4111-8111-111111111111/);
+  await expect(page.getByText("/v1/chat/completions")).toBeVisible();
 });
 
 test("settings validate thresholds and confirm real upstream and data deletion", async ({ page }) => {

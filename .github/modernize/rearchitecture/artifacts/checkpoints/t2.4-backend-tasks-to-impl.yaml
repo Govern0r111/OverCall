@@ -1,0 +1,61 @@
+metadata:
+  generated: "2026-11-06"
+  source_tasks: "Task assignment t2.4"
+  last_updated: "2026-11-06"
+
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+
+tasks:
+  - task_id: "t2.4"
+    description: "Align detection-run status transitions with the database constraint and verify the API workflow."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/api/overcall/v1_api.py"
+          changes:
+            - change_type: "modified"
+              description: "Persist succeeded and translate succeeded to public completed for POST and latest-run responses."
+        - file: "apps/api/tests/contract/test_v1_contract.py"
+          changes:
+            - change_type: "modified"
+              description: "Assert the run transition and both API response status mappings."
+    verification:
+      build_passed: null
+      test_results:
+        command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests"
+        passed: 96
+        failed: 0
+        skipped: 2
+        failures: []
+      notes: "OpenAPI drift, Ruff lint/format, and git diff --check passed. PostgreSQL integration was skipped because TEST_DATABASE_URL was unset; no separate build was run."
+    upstream_trace:
+      plan_item: "docs/PLAN.md#B6 Tasks 5"
+      requirements:
+        - "B6 detection-run API workflow"
+      full_trace: "Database status constraint → t2.4 → v1_api.py and test_v1_contract.py; POST and latest-run tests passed."
+
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-t2.4-001"
+    requirement: "B6 detection-run API workflow"
+    plan_phase: "Integration remediation"
+    plan_item: "docs/PLAN.md#B6 Tasks 5"
+    tasks:
+      - "t2.4"
+    files:
+      - "apps/api/overcall/v1_api.py"
+      - "apps/api/tests/contract/test_v1_contract.py"
+    status: "complete"
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "PostgreSQL-only checks skipped: TEST_DATABASE_URL was unset."
+  blocking_issues: []

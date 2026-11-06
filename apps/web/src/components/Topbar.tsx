@@ -50,7 +50,7 @@ const ThemeToggle = () => {
 const ProxyStatus = () => {
   const { data } = useProviders();
   const receiving = data?.some((provider) => provider.status === "receiving_traffic") ?? false;
-  const demoOnly = Boolean(data?.length) && data?.every((provider) => provider.status === "demo_only" || provider.status === "stubbed");
+  const demoOnly = Boolean(data?.length) && data?.every((provider) => provider.status === "demo_only" || provider.status === "coming_soon");
   const label = !data ? "Status unavailable" : receiving ? "Receiving traffic" : demoOnly ? "Demo data only" : "Waiting for traffic";
   return (
     <div

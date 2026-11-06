@@ -81,7 +81,7 @@ export const IssueDetail = ({ issue, index }: { issue: Issue; index: number }) =
         <Meta label="Affected requests" value={formatInt(issue.affected_count)} />
         <Meta label="Waste in observed window" value={money(issue.estimated_savings_usd)} />
         <Meta label="Projected monthly" value={money(issue.projected_monthly_usd)} />
-        {issue.experimental && <Meta label="Confidence" value={`${Math.round(issue.confidence * 100)}%`} testId="issue-confidence" />}
+        {issue.experimental && issue.confidence !== null && <Meta label="Confidence" value={`${Math.round(issue.confidence * 100)}%`} testId="issue-confidence" />}
       </dl>
       <div>
         <h4 className="mb-2 text-xs text-muted-foreground">Sample requests ({issue.sample_requests.length} of {formatInt(issue.affected_count)})</h4>

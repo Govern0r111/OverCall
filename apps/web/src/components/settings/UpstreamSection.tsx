@@ -23,7 +23,7 @@ export const UpstreamSection = () => {
       setConfirmOpen(true);
       return;
     }
-    save.mutate({ ...s, openai_upstream: value });
+    save.mutate({ ...s, openai_upstream: value, confirm_real_upstream: false });
   };
 
   return (
@@ -64,7 +64,7 @@ export const UpstreamSection = () => {
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
           <Button type="button" disabled={!acknowledged || save.isPending} onClick={() => {
-            save.mutate({ ...s, openai_upstream: "real" }, { onSuccess: () => setConfirmOpen(false) });
+            save.mutate({ ...s, openai_upstream: "real", confirm_real_upstream: true }, { onSuccess: () => setConfirmOpen(false) });
           }}>
             Enable real upstream
           </Button>

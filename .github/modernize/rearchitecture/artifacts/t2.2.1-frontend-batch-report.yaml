@@ -1,0 +1,112 @@
+batch_id: "t2.2.1"
+completed_tasks:
+  - "t2.2.1"
+blocked_tasks: []
+files_changed:
+  t2.2.1:
+    - file: "apps/web/src/lib/api.ts"
+      change_type: "modified"
+      description: "Define versioned wire DTOs and adapters to the existing UI view models."
+    - file: "apps/web/src/hooks/queries.ts"
+      change_type: "modified"
+      description: "Fetch API response envelopes and normalize them at query boundaries."
+    - file: "apps/web/src/mocks/state.ts"
+      change_type: "modified"
+      description: "Return demo state in the versioned response schema."
+    - file: "apps/web/src/mocks/handlers.ts"
+      change_type: "modified"
+      description: "Use typed settings inputs, 204 data deletion, and contract-shaped response handlers."
+    - file: "apps/web/src/mocks/handlers.test.ts"
+      change_type: "modified"
+      description: "Assert response DTO shape and settings persistence."
+    - file: "apps/web/src/lib/api.test.ts"
+      change_type: "modified"
+      description: "Test overview, issue, log, and settings response adapters."
+    - file: "apps/web/src/pages/Overview.tsx"
+      change_type: "modified"
+      description: "Render API-provided demo status and nullable generated timestamp."
+    - file: "apps/web/src/pages/Providers.tsx"
+      change_type: "modified"
+      description: "Consume nested provider traffic/pricing contract fields."
+    - file: "apps/web/src/components/PricingTable.tsx"
+      change_type: "modified"
+      description: "Render nullable generic pricing rows supplied by the API."
+    - file: "apps/web/src/components/IssueDetail.tsx"
+      change_type: "modified"
+      description: "Handle nullable API confidence and reduced sample metadata."
+    - file: "apps/web/src/components/Topbar.tsx"
+      change_type: "modified"
+      description: "Handle the API's coming_soon provider status."
+    - file: "apps/web/src/components/settings/AccuracySection.tsx"
+      change_type: "modified"
+      description: "Render separate API accuracy datasets and schema fields."
+    - file: "apps/web/src/components/settings/RulesSection.tsx"
+      change_type: "modified"
+      description: "Keep disabled experimental rule descriptions legible."
+    - file: "apps/web/src/components/settings/WindowsSection.tsx"
+      change_type: "modified"
+      description: "Use API threshold names and expose all threshold values."
+    - file: "apps/web/src/components/settings/UpstreamSection.tsx"
+      change_type: "modified"
+      description: "Send the API-required explicit real-upstream confirmation."
+    - file: "apps/web/e2e/app.spec.ts"
+      change_type: "modified"
+      description: "Verify versioned DTO responses through the signed-in demo dashboard flow."
+upstream_artifacts_consumed:
+  t2.2.1:
+    - artifact: ".github/modernize/rearchitecture/artifacts/t1-pm.md"
+      used_for: "Checklist order and external-credential verification boundary."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1.2-backend.md"
+      used_for: "Mounted versioned API paths and backend response schemas."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.3-backend.md"
+      used_for: "JWT route evidence and the external Supabase credential boundary."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.2-frontend.md"
+      used_for: "Prior URL alignment and outstanding response DTO gaps."
+evidence_mapping:
+  t2.2.1:
+    - upstream: "t2.1.2-backend.md#Summary; apps/api/overcall/api_schemas.py"
+      output: "apps/web/src/lib/api.ts#ApiOverview, ApiIssue, ApiLogList, ApiSettings, ApiProvider, ApiAccuracy"
+      evidence: "Typed adapters and `npm test` pass."
+    - upstream: "contract/openapi.yaml#versioned response properties and types"
+      output: "apps/web/src/mocks/handlers.test.ts#serves versioned response DTOs"
+      evidence: "MSW responses assert list envelopes and schema field names; backend drift check passes."
+    - upstream: "t1-pm.md#Manual and external preconditions; t2.3-backend.md#Remaining Boundaries"
+      output: "t2.2.1-frontend.md#Remaining Boundaries"
+      evidence: "Real account/OAuth verification is not claimed; credentials are unavailable."
+traceability:
+  - requirement: "Align frontend response DTOs to versioned backend response schemas and verify the affected signed-in flow."
+    plan_item: "docs/PLAN.md#3.3 REST API; #4C I1"
+    task: "t2.2.1"
+    files:
+      - "apps/web/src/lib/api.ts"
+      - "apps/web/src/hooks/queries.ts"
+      - "apps/web/src/mocks/state.ts"
+      - "apps/web/src/mocks/handlers.ts"
+      - "apps/web/e2e/app.spec.ts"
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - "The signed-in browser proof uses demo auth and MSW; real Supabase credentials and OAuth provider configuration are unavailable."
+  - "docs/PLAN.md D5/F3 expects generated frontend types; `gen:api`/`schema.d.ts` generation was not implemented or verified in this task."
+test_results:
+  t2.2.1:
+    command: "npm test (from apps/web)"
+    passed: 23
+    failed: 0
+    skipped: 0
+    failures: []
+    additional_verification:
+      - command: "npm run test:e2e -- e2e/app.spec.ts (from apps/web)"
+        passed: 12
+        failed: 0
+        skipped: 0
+        failures: []
+      - command: "npm run build (from apps/web)"
+        result: "passed"
+      - command: "npx eslint src/lib/api.ts src/lib/api.test.ts src/hooks/queries.ts src/mocks/state.ts src/mocks/handlers.ts src/mocks/handlers.test.ts src/pages/Overview.tsx src/pages/Providers.tsx src/components/IssueDetail.tsx src/components/PricingTable.tsx src/components/settings/AccuracySection.tsx src/components/settings/RulesSection.tsx src/components/settings/WindowsSection.tsx src/components/settings/UpstreamSection.tsx src/components/Topbar.tsx e2e/app.spec.ts (from apps/web)"
+        result: "passed"
+      - command: "apps/api/.venv/Scripts/python.exe apps/api/scripts/check_contract.py"
+        result: "passed; all 17 versioned paths match"
+      - command: "git diff --check"
+        result: "passed"

@@ -118,7 +118,7 @@ def _run_row() -> DetectionRun:
     return DetectionRun(
         id=RUN_ID,
         user_id=USER_ID,
-        status="completed",
+        status="succeeded",
         started_at=NOW,
         finished_at=NOW,
         is_demo_data=False,
@@ -264,6 +264,7 @@ def api_client(api_settings: Settings, monkeypatch) -> TestClient:
     monkeypatch.setattr(v1_api, "DetectionRunRepository", FakeDetectionRunRepository)
     app = create_app(api_settings)
     session = FakeSession(api_settings)
+    app.state.test_session = session
 
     async def current_user():
         return UserContext(user_id=USER_ID, email="dev@example.test")
@@ -325,6 +326,24 @@ def test_v1_endpoints_respond_at_runtime(api_client: TestClient) -> None:
             response.status_code,
             response.text,
         )
+
+
+def test_detection_run_persists_database_status_and_returns_public_status(
+    api_client: TestClient,
+) -> None:
+    latest = api_client.get("/v1/detection/runs/latest")
+    assert latest.status_code == 200
+    assert latest.json()["status"] == "completed"
+
+    response = api_client.post("/v1/detection/run")
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+
+    persisted_runs = [
+        item for item in api_client.app.state.test_session.added if isinstance(item, DetectionRun)
+    ]
+    assert len(persisted_runs) == 1
+    assert persisted_runs[0].status == "succeeded"
 
 
 def test_empty_overview_matches_contract_fixture(

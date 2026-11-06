@@ -5,7 +5,11 @@ test("landing loads without requests to another origin", async ({ page }) => {
   const externalRequests: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.origin !== "http://127.0.0.1:4173" || url.pathname.startsWith("/api/")) {
+    if (
+      url.origin !== "http://127.0.0.1:4173" ||
+      url.pathname.startsWith("/v1/") ||
+      url.pathname.startsWith("/proxy/")
+    ) {
       externalRequests.push(request.url());
     }
   });

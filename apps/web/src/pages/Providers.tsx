@@ -14,7 +14,7 @@ const STATUS: Record<Provider["status"], { label: string; dot: string; ring: str
   receiving_traffic: { label: "Receiving traffic", dot: "bg-savings", ring: "ring-savings/20" },
   demo_only: { label: "Demo data only", dot: "bg-muted-foreground", ring: "" },
   waiting: { label: "Waiting for first request", dot: "border border-muted-foreground", ring: "" },
-  stubbed: { label: "Coming soon", dot: "border border-muted-foreground", ring: "" },
+  coming_soon: { label: "Coming soon", dot: "border border-muted-foreground", ring: "" },
 };
 
 const UPSTREAM: Record<string, string> = {
@@ -94,16 +94,15 @@ const ProviderCard = ({ p }: { p: Provider }) => {
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-5 sm:grid-cols-4">
-              <Stat label="Via proxy" value={formatInt(p.counts.proxy)} testId={`provider-${p.id}-proxy-count`} />
-              <Stat label="Demo data" value={formatInt(p.counts.demo)} testId={`provider-${p.id}-synthetic-count`} />
-              <Stat label="Open issues" value={formatInt(p.issue_count)} testId={`provider-${p.id}-issue-count`} />
-              <Stat label="Last proxied" value={timeAgo(p.last_proxy_request_at)} testId={`provider-${p.id}-last-seen`} />
+              <Stat label="Via proxy" value={formatInt(p.traffic.proxy)} testId={`provider-${p.id}-proxy-count`} />
+              <Stat label="Demo data" value={formatInt(p.traffic.demo)} testId={`provider-${p.id}-synthetic-count`} />
+              <Stat label="Last proxied" value={timeAgo(p.traffic.last_request_at)} testId={`provider-${p.id}-last-seen`} />
             </dl>
           </>
         ) : (
           <div className="rounded-md border border-border bg-background p-4">
             <p className="text-sm font-medium">AWS support is coming soon.</p>
-            <p className="mt-1 text-sm text-muted-foreground">{p.pricing.notes}</p>
+            {p.notes && <p className="mt-1 text-sm text-muted-foreground">{p.notes}</p>}
           </div>
         )}
         <PricingTable provider={p} />

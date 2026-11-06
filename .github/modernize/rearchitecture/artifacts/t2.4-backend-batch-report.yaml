@@ -1,0 +1,68 @@
+batch_id: "t2.4"
+completed_tasks:
+  - "t2.4"
+blocked_tasks: []
+files_changed:
+  t2.4:
+    - file: "apps/api/overcall/v1_api.py"
+      change_type: "modified"
+      description: "Persist successful runs as succeeded and map database statuses to the existing public API vocabulary."
+    - file: "apps/api/tests/contract/test_v1_contract.py"
+      change_type: "modified"
+      description: "Verify successful detection-run persistence and POST/latest API status translation."
+upstream_artifacts_consumed:
+  t2.4:
+    - artifact: ".github/modernize/rearchitecture/artifacts/t1-pm.md"
+      used_for: "Checklist ordering and verification boundaries."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1.1-backend.md"
+      used_for: "Repository and transaction ownership."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1.2-backend.md"
+      used_for: "Versioned API contract and runtime-test conventions."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.3-backend.md"
+      used_for: "Current-user-authenticated API context."
+    - artifact: "docs/PLAN.md"
+      used_for: "B6 detection endpoint behavior and checklist boundaries."
+    - artifact: "supabase/migrations/20261022140000_init.sql"
+      used_for: "Allowed detection_runs status values."
+    - artifact: "contract/openapi.yaml"
+      used_for: "Existing detection-run response contract."
+evidence_mapping:
+  t2.4:
+    - upstream: "supabase/migrations/20261022140000_init.sql#detection_runs.status"
+      output: "apps/api/overcall/v1_api.py#_perform_detection"
+      evidence: "API workflow test asserts persisted status is succeeded."
+    - upstream: "contract/openapi.yaml#/v1/detection/run"
+      output: "apps/api/overcall/v1_api.py#run_detection and _run_summary"
+      evidence: "API workflow test asserts completed in POST and latest-run responses."
+    - upstream: "docs/PLAN.md#B6 Tasks 5"
+      output: "apps/api/tests/contract/test_v1_contract.py#test_detection_run_persists_database_status_and_returns_public_status"
+      evidence: "TestClient verifies the endpoint returns 200 and expected response status."
+traceability:
+  - requirement: "B6 detection-run API workflow"
+    plan_item: "docs/PLAN.md#B6 Tasks 5"
+    task: "t2.4"
+    files:
+      - "apps/api/overcall/v1_api.py"
+      - "apps/api/tests/contract/test_v1_contract.py"
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: "INFO"
+    message: "PostgreSQL-backed checks were skipped because TEST_DATABASE_URL was unset; the persisted value matches the checked-in migration constraint."
+test_results:
+  t2.4:
+    command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests (run from system temp directory with PYTHONPATH=apps/api, CORS_ORIGINS=http://localhost:5173, SUPABASE_URL and TEST_DATABASE_URL unset)"
+    passed: 96
+    failed: 0
+    skipped: 2
+    failures: []
+endpoint_probes:
+  - method: "POST"
+    path: "/v1/detection/run"
+    status: 200
+    result: "PASS; response status completed and persisted run status succeeded."
+  - method: "GET"
+    path: "/v1/detection/runs/latest"
+    status: 200
+    result: "PASS; persisted succeeded status is translated to completed."

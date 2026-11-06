@@ -142,6 +142,16 @@ def _window_days(logs: list[LegacyLog]) -> float:
     return max(1.0, (logs[-1].timestamp - logs[0].timestamp).total_seconds() / 86400)
 
 
+def _api_detection_status(status: str) -> Literal["running", "completed", "failed"]:
+    if status == "running":
+        return "running"
+    if status == "succeeded":
+        return "completed"
+    if status == "failed":
+        return "failed"
+    raise ValueError(f"Unexpected persisted detection run status: {status}")
+
+
 async def _perform_detection(
     session: AsyncSession,
     user_id: UUID,
@@ -255,7 +265,7 @@ async def _perform_detection(
     run.issue_counts = severity_counts
     run.trend = [{"date": date, **values} for date, values in sorted(by_day.items())]
     run.projection_low_confidence = len(rows) < 10
-    run.status = "completed"
+    run.status = "succeeded"
     run.finished_at = datetime.now(UTC)
     run.duration_ms = max(0, int((run.finished_at - run.started_at).total_seconds() * 1000))
     await session.commit()
@@ -407,7 +417,7 @@ async def _log_response(session: AsyncSession, user_id: UUID, log: RequestLog) -
 def _run_summary(run: DetectionRun) -> DetectionRunSummary:
     return DetectionRunSummary(
         id=run.id,
-        status=run.status,
+        status=_api_detection_status(run.status),
         started_at=run.started_at,
         finished_at=run.finished_at,
         is_demo_data=run.is_demo_data,
@@ -985,9 +995,7 @@ async def run_detection(
     assert run is not None
     if run.status == "running":
         response.status_code = 202
-    return DetectionRunResponse(
-        run_id=run.id, status="running" if run.status == "running" else "completed"
-    )
+    return DetectionRunResponse(run_id=run.id, status=_api_detection_status(run.status))
 
 
 @router.get("/detection/runs/latest", response_model=DetectionRunSummary)

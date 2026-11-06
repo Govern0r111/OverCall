@@ -46,3 +46,17 @@
 - Debugging dead-ends and what actually worked: Isolated temp-directory test execution with database/provider variables removed reproduced a clean result: 9 focused proxy tests and 77 full API tests passed; the two PostgreSQL checks skipped explicitly for missing `TEST_DATABASE_URL`.
 - Techniques/patterns worth reusing for future tasks: Verify the app over local HTTP, check the full route contract, rerun the focused boundary suite and full module suite, and report PostgreSQL/auth-provider coverage separately. Preserve outstanding two-user isolation and all-fixture checks as open B6 work.
 - Learnings consumed: [backend/openapi-contract-drift, backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary]
+
+## [t2.3] Implemented Supabase current-user JWT verification
+- Codebase/domain discoveries: `create_app` owns a verifier configured from `SUPABASE_URL`, `SUPABASE_JWT_ALGORITHMS`, and optional `SUPABASE_JWT_SECRET`; `/v1` repositories continue to receive only UUID identity through `UserContext`.
+- Wrong assumptions and corrections: A local signing key plus mocked JWKS is good evidence for cryptographic and route behavior, but it does not prove a real Supabase project's provider configuration or key set.
+- Debugging dead-ends and what actually worked: The API venv initially lacked PyJWT; adding the pinned `PyJWT[crypto]` dependency let RSA/EC verification tests run. A test-client request to `/v1/me` with a generated RS256 token verified the real app dependency and route.
+- Techniques/patterns worth reusing for future tasks: Test all mounted `/v1` operations with valid request shapes and no bearer token; separately verify a locally signed RS256/ES256 JWT. Keep external provider checks and PostgreSQL-only tests explicit when credentials/DB are unavailable.
+- Learnings consumed: [backend/openapi-contract-drift, backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary, architect/disconnected-api-runtime-boundary]
+
+## [t2.4] Aligned detection-run lifecycle values
+- Codebase/domain discoveries: The `detection_runs` constraint stores successful completion as `succeeded`, while the existing API response vocabulary is `completed`; both `/v1/detection/run` and `/v1/detection/runs/latest` need the same translation.
+- Wrong assumptions and corrections: Changing only the database write would cause the latest-run endpoint to expose `succeeded`; status translation belongs at both API response boundaries.
+- Debugging dead-ends and what actually worked: No `TEST_DATABASE_URL` was configured, so PostgreSQL integration checks remained skipped. The TestClient route workflow verified persisted ORM status and public response semantics.
+- Techniques/patterns worth reusing for future tasks: Keep storage enums aligned with SQL constraints, map public lifecycle labels in one helper, and test both write and read API paths.
+- Learnings consumed: [backend/sqlmodel-api-persistence-boundary]

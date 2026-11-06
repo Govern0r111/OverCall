@@ -15,9 +15,10 @@ const FIELDS: { key: keyof Windows; label: string; unit: string; help: string }[
   { key: "unbatched_min_calls", label: "Calls per burst", unit: "calls", help: "Single calls in a burst before suggesting batching." },
   { key: "unbatched_window_s", label: "Burst gap", unit: "s", help: "Max gap between calls in the same burst." },
   { key: "token_bloat_min_repeats", label: "Context resends", unit: "times", help: "Experimental: repeats of the same context." },
-  { key: "token_bloat_min_prompt_tokens", label: "Large context", unit: "tokens", help: "Experimental: prompt size that counts as large." },
+  { key: "token_bloat_min_context_tokens", label: "Large context", unit: "tokens", help: "Experimental: prompt context size that counts as large." },
   { key: "model_overuse_max_prompt_tokens", label: "Small task — prompt", unit: "tokens", help: "Experimental: max prompt for a 'small' task." },
   { key: "model_overuse_max_completion_tokens", label: "Small task — answer", unit: "tokens", help: "Experimental: max answer for a 'small' task." },
+  { key: "model_overuse_min_calls", label: "Small-task call count", unit: "calls", help: "Experimental: minimum calls before model-overuse findings are evaluated." },
 ];
 
 const toDraft = (windows: Windows): Record<keyof Windows, string> =>

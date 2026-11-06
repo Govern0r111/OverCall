@@ -9,8 +9,7 @@ import { TrendChart } from "../components/TrendChart";
 import { IssueRow } from "../components/IssueRow";
 import { DemoBanner } from "../components/DemoBanner";
 import { useOverview, useRerun } from "../hooks/queries";
-import { useApp } from "../context/AppContext";
-import { formatInt, timeAgo, PROVIDER_NAME } from "../lib/format";
+import { formatInt, timeAgo } from "../lib/format";
 import type { Severity } from "../lib/api";
 
 export const PageSkeleton = () => (
@@ -63,37 +62,18 @@ const SeverityBar = ({ counts }: { counts: Record<Severity, number> }) => {
   );
 };
 
-const SourceBreakdown = ({ sources }: { sources: Record<string, number> }) => {
-  const entries = Object.entries(sources).filter(([, v]) => v > 0);
-  if (!entries.length) return null;
-  const total = entries.reduce((a, [, v]) => a + v, 0);
-  return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-      <span>Sources:</span>
-      {entries.map(([k, v]) => (
-        <span key={k} className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          <span className="capitalize">{k}</span>
-          <span className="font-mono text-foreground">{formatInt(v)}</span>
-          <span>({Math.round((v / total) * 100)}%)</span>
-        </span>
-      ))}
-    </div>
-  );
-};
-
 export default function Overview() {
   const { data, isLoading } = useOverview();
   const rerun = useRerun();
   if (isLoading || !data) return <PageSkeleton />;
   if (!data.has_data) return <EmptyState />;
 
-  const demoOnly = !!data.sources.synthetic && !data.sources.proxy;
+  const demoOnly = data.is_demo_data;
   return (
     <div>
       <PageHeader
         title="Overview"
-        description={`${data.window_days.toFixed(1)} days of traffic · ${formatInt(data.request_count)} requests analyzed · updated ${timeAgo(data.ran_at)}`}
+        description={`${data.window_days.toFixed(1)} days of traffic · ${formatInt(data.request_count)} requests analyzed${data.ran_at ? ` · updated ${timeAgo(data.ran_at)}` : ""}`}
         actions={
           <Button variant="outline" size="sm" data-testid="rerun-detection-button" onClick={() => rerun.mutate()} disabled={rerun.isPending}>
             {rerun.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-2 h-3.5 w-3.5" />}
@@ -108,7 +88,6 @@ export default function Overview() {
       </div>
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
         <SeverityBar counts={data.issue_counts} />
-        <SourceBreakdown sources={data.sources} />
       </div>
       <Card testId="top-issues-card" className="mt-10">
         <div className="flex items-center justify-between border-b border-divider px-5 py-4">

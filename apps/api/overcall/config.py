@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = 5
     supabase_url: str | None = None
     supabase_jwt_secret: SecretStr | None = None
+    supabase_jwt_algorithms: str = "RS256,ES256"
     supabase_service_role_key: SecretStr | None = None
     ingest_key_pepper: SecretStr | None = None
     ingest_key_pepper_prev: SecretStr | None = None
@@ -84,12 +85,27 @@ class Settings(BaseSettings):
             raise ValueError("must be between 1 and 90 days")
         return value
 
-    @field_validator("ingest_key_pepper", "ingest_key_pepper_prev", "internal_token")
+    @field_validator(
+        "ingest_key_pepper",
+        "ingest_key_pepper_prev",
+        "internal_token",
+        "supabase_jwt_secret",
+    )
     @classmethod
     def validate_secret_length(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < 32:
             raise ValueError("must contain at least 32 characters")
         return value
+
+    @field_validator("supabase_jwt_algorithms")
+    @classmethod
+    def validate_jwt_algorithms(cls, value: str) -> str:
+        algorithms = [algorithm.strip() for algorithm in value.split(",") if algorithm.strip()]
+        if not algorithms or len(set(algorithms)) != len(algorithms):
+            raise ValueError("must contain unique JWT algorithms")
+        if any(algorithm not in {"RS256", "ES256"} for algorithm in algorithms):
+            raise ValueError("only RS256 and ES256 may be configured for Supabase signing keys")
+        return ",".join(algorithms)
 
     @field_validator("log_level")
     @classmethod
@@ -143,6 +159,13 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin for origin in self.cors_origins.split(",") if origin]
+
+    @property
+    def jwt_allowed_algorithms(self) -> tuple[str, ...]:
+        algorithms = tuple(self.supabase_jwt_algorithms.split(","))
+        if self.supabase_jwt_secret is not None:
+            return (*algorithms, "HS256")
+        return algorithms
 
     @property
     def database_ssl(self) -> bool:

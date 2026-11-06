@@ -1,0 +1,118 @@
+metadata:
+  generated: "2026-11-06T14:35:42Z"
+  source_tasks: "Task assignment t2.2.1"
+  last_updated: "2026-11-06T14:35:42Z"
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+tasks:
+  - task_id: "t2.2.1"
+    description: "Align frontend DTOs with versioned backend response schemas and verify the affected signed-in flow"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/web/src/lib/api.ts"
+          changes:
+            - change_type: "modified"
+              description: "Add wire DTOs and API-to-view model adapters."
+        - file: "apps/web/src/hooks/queries.ts"
+          changes:
+            - change_type: "modified"
+              description: "Map versioned responses in query functions and send matching settings/data requests."
+        - file: "apps/web/src/mocks/state.ts"
+          changes:
+            - change_type: "modified"
+              description: "Produce versioned response-shaped demo API data."
+        - file: "apps/web/src/mocks/handlers.ts"
+          changes:
+            - change_type: "modified"
+              description: "Serve matching route response envelopes and status codes."
+        - file: "apps/web/src/mocks/handlers.test.ts"
+          changes:
+            - change_type: "modified"
+              description: "Test schema-shaped demo responses."
+        - file: "apps/web/src/lib/api.test.ts"
+          changes:
+            - change_type: "modified"
+              description: "Test DTO field/decimal conversion."
+        - file: "apps/web/src/pages/Overview.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Consume API-provided demo status and timestamp."
+        - file: "apps/web/src/pages/Providers.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Consume nested provider traffic fields and API status values."
+        - file: "apps/web/src/components/PricingTable.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Render generic nullable pricing rows."
+        - file: "apps/web/src/components/IssueDetail.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Handle nullable confidence and API sample-request fields."
+        - file: "apps/web/src/components/Topbar.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Handle the coming_soon provider state."
+        - file: "apps/web/src/components/settings/AccuracySection.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Render the API's separate synthetic and real datasets."
+        - file: "apps/web/src/components/settings/RulesSection.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Retain readable contrast for disabled rule content."
+        - file: "apps/web/src/components/settings/WindowsSection.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Match backend threshold field names and values."
+        - file: "apps/web/src/components/settings/UpstreamSection.tsx"
+          changes:
+            - change_type: "modified"
+              description: "Include explicit real-upstream confirmation in API updates."
+        - file: "apps/web/e2e/app.spec.ts"
+          changes:
+            - change_type: "modified"
+              description: "Verify the signed-in demo overview-to-logs journey with versioned responses."
+      commit_hash: ""
+      pr_link: ""
+    verification:
+      build_passed: true
+      test_results:
+        command: "npm test (apps/web)"
+        passed: 23
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Also passed Playwright app E2E (12), npm run build, changed-file ESLint, backend OpenAPI drift check (17 versioned paths), and git diff --check. Real Supabase auth/OAuth was not tested."
+    upstream_trace:
+      plan_item: "docs/PLAN.md#3.3 REST API; #4C I1"
+      requirements: []
+      full_trace: "backend response schemas → frontend wire DTOs/adapters + matching MSW DTOs → unit, schema-shape, build, and signed-in demo browser verification"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-t2.2.1"
+    requirement: "Versioned response DTO alignment and affected signed-in flow."
+    plan_phase: "Integration remediation"
+    plan_item: "docs/PLAN.md#4C I1"
+    tasks:
+      - "t2.2.1"
+    files:
+      - "apps/web/src/lib/api.ts"
+      - "apps/web/src/hooks/queries.ts"
+      - "apps/web/src/mocks/state.ts"
+      - "apps/web/src/mocks/handlers.ts"
+      - "apps/web/e2e/app.spec.ts"
+    status: "complete"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "Real Supabase account/OAuth verification remains unavailable and unclaimed."
+    - "Generated frontend type workflow in docs/PLAN.md D5/F3 remains a follow-up."
+  blocking_issues: []

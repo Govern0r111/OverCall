@@ -41,7 +41,7 @@ export const RulesSection = () => {
                 }
               />
             )}
-            <div className={t.tier === 3 && !s.experimental_enabled ? "pointer-events-none opacity-50" : ""}>
+            <div>
               {rules.filter((r) => r.tier === t.tier).map((r) => (
                 <SettingRow
                   key={r.id}

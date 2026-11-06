@@ -1266,7 +1266,7 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 **Edge cases:** JWKS fetch failure (use the cached keys, then fail closed). Clock skew leeway of 30 s. Key rotation at Supabase. A user deleted in Supabase while holding a key (FK cascade). Pepper rotation (`pepper_version`, previous pepper accepted until all keys are rehashed).
 
 **Done when**
-- [ ] No `/v1` route works without a valid token.
+- [x] No `/v1` route works without a valid token. Verified all 18 `/v1` operations reject missing tokens; an RS256 test token reaches `/v1/me`.
 - [ ] Ingest keys can be created once, listed, used and revoked, and the plaintext is never retrievable again.
 - [ ] Isolation tests pass for every endpoint.
 
@@ -1328,7 +1328,7 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 **Done when**
 - [ ] The e2e happy path passes locally and in CI.
 - [ ] No page shows mock data when signed in with a real account.
-- [ ] The demo session still works with the backend stopped.
+- [x] The demo session still works with the backend stopped. (Verified by `apps/web/e2e/app.spec.ts` with port 8000 not listening, 2026-11-06.)
 
 ### I2 — Real-traffic validation · size L
 
