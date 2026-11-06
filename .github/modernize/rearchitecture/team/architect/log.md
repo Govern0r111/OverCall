@@ -10,3 +10,9 @@
 - The browser still calls `/api/*` and `/api/proxy/*`, while the backend exposes `/v1/*` and `/proxy/*`; the JWT dependency is still a fail-closed 401 placeholder pending B10. Keep the end-to-end integration claim open.
 - Existing project-level worktree changes were limited to `board.md` and `project-profile.yaml`; they were preserved. No application source or plan checkbox was changed.
 - Learnings consumed: [architect/disconnected-api-runtime-boundary]
+
+## [t2] Final re-review after integration remediation
+- The router-level `/v1` JWT dependency, separate proxy ingest-key boundary, browser DTO adapters, and database/public detection status mapping are consistent with their current route/schema/contract evidence.
+- Fresh verification passed: web unit tests (23), web production build, API suite (96 passed/2 PostgreSQL checks skipped), OpenAPI drift check (17 versioned paths), and `git diff --check`.
+- Prior t2.2 browser integration evidence covers the local signed-in `/v1`+proxy flow and persisted `succeeded` status; real Supabase/OAuth and CI acceptance remain open. No source or plan checkbox was changed; the existing dirty board/profile edits were preserved.
+- Learnings consumed: [architect/disconnected-api-runtime-boundary]

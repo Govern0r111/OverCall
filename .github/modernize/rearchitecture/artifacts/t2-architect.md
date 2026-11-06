@@ -121,3 +121,47 @@ Evidence: `apps/web/src/router.tsx:53-64`, `apps/web/src/main.tsx:28-42`, `apps/
 - Read-only evidence review: inspected router/API host, frontend query and mock paths, DB model/migration/test files, pricing/detection/proxy modules, and deployment manifests.
 - Checklist verification: compared module coverage against the t1 inventory of 65 unchecked rows (F2–F7, B1–B11, I1–I3, Appendix A).
 - Tests/build: not run; this deliverable is an architecture map and makes no application-code changes.
+
+## Final re-review after route, DTO, auth, and detection-status remediation — 2026-11-06
+
+**Verdict: PASS for the reviewed route/DTO/auth/status integration boundary. No HIGH or CRITICAL implementation findings remain in this scope.** This does not claim production readiness, full checklist completion, or external-account verification.
+
+### Review evidence
+
+- `apps/api/overcall/main.py` registers both the `/v1` API router and `/proxy` router. `apps/api/overcall/v1_api.py` applies `get_current_user` at the `/v1` router boundary; the proxy uses its separate ingest-key dependency.
+- `apps/api/overcall/auth/jwt.py`, `overcall/deps.py`, and `config.py` restrict JWT algorithms to configured RS256/ES256 keys, with HS256 available only when an explicit legacy secret is configured; verification checks signature, issuer, exact audience, expiration, and subject. Route-auth and JWT tests cover missing credentials, a valid local RS256 token, key rotation, claim failures, and fail-closed behavior.
+- `apps/web/src/lib/api.ts` and `hooks/queries.ts` use the mounted `/v1` endpoints and versioned response envelopes. The frontend DTO interfaces match the corresponding Pydantic response fields; explicit API-to-view adapters handle decimal/string and naming differences. `api.test.ts` exercises these adapters and URL contracts.
+- `apps/api/overcall/v1_api.py` persists successful detection runs as `succeeded` (per `supabase/migrations/20261022140000_init.sql`) and maps that value to the public `completed` response for both run and latest-run routes. The contract test asserts both public responses and the stored ORM value.
+- The prior local browser integration evidence in `t2.2-frontend.md#Final Re-verification After t2.4` reports successful signed-in local `/v1` and `/proxy` flows and a persisted `succeeded` status. This review did not restart that multi-service browser harness; it independently reran the unit suites, frontend build, API suite, and OpenAPI drift check below.
+
+### Verification results
+
+- `Set-Location apps/web; npm test` — **23 passed, 0 failed, 0 skipped**.
+- `Set-Location apps/web; npm run build` — **passed** (`tsc -b && vite build`).
+- Isolated API suite: `apps/api/.venv/Scripts/python.exe -m pytest -q -c <repo>/apps/api/pyproject.toml <repo>/apps/api/tests` (run from the system temp directory with `PYTHONPATH=<repo>/apps/api` and ambient DB/provider settings removed) — **96 passed, 0 failed, 2 skipped**. The two PostgreSQL-specific tests were skipped because `TEST_DATABASE_URL` was removed/unavailable in the isolated run. Existing pytest-asyncio and Starlette deprecation warnings are non-failing.
+- `apps/api/.venv/Scripts/python.exe apps/api/scripts/check_contract.py` — **passed**, generated OpenAPI matches all 17 versioned paths.
+- `git diff --check` — **passed**.
+
+### Remaining boundaries
+
+- No real Supabase project, live signing keys, real user, Google OAuth setup, or production service was available. Real-account/OAuth acceptance remains unchecked; the auth evidence uses local keys/JWKS.
+- CI was not run, so the I1 CI criterion remains open. PostgreSQL-only API tests were skipped in this independent review; the earlier t2.2 browser evidence used an isolated Docker PostgreSQL instance.
+- Ingest-key create/list/revoke lifecycle and cross-tenant isolation remain separate unchecked B10 acceptance criteria (per `t2.3-backend.md#Remaining Boundaries`); this review does not certify them.
+- No application source or `docs/PLAN.md` checklist item was changed. F1 was not revisited.
+
+## Upstream Artifacts Consumed
+
+- `.github/modernize/rearchitecture/artifacts/t1-pm.md` — remaining checklist criteria and manual/external verification boundaries.
+- `.github/modernize/rearchitecture/artifacts/t2.1-backend.md` — mounted API/proxy route and runtime/test scope.
+- `.github/modernize/rearchitecture/artifacts/t2.2-frontend.md` — route alignment and final local browser/API integration evidence.
+- `.github/modernize/rearchitecture/artifacts/t2.2.1-frontend.md` — frontend wire DTOs and API-to-view adapters.
+- `.github/modernize/rearchitecture/artifacts/t2.3-backend.md` — JWT verification implementation and local-versus-external auth limits.
+- `.github/modernize/rearchitecture/artifacts/t2.4-backend.md` — persisted detection status and public status mapping.
+
+## Evidence Mapping
+
+- `t1-pm.md#I1` / `#Manual and external preconditions` → local integration is distinct from CI and real-account/OAuth completion; those conditions remain explicitly open above.
+- `t2.1-backend.md#Runtime and Route Evidence` → current router registration plus route-auth and full API test coverage confirms mounted `/v1`/proxy boundaries.
+- `t2.2-frontend.md#Final Re-verification After t2.4` and `t2.2.1-frontend.md#Implementation` → local browser flow and typed DTO/adapters support the frontend/backend path and response compatibility findings.
+- `t2.3-backend.md#Test Results` / `#Remaining Boundaries` → JWT claims and local-key test coverage are reviewed; external JWKS and ingest-key/isolation scope remain qualified.
+- `t2.4-backend.md#Evidence Mapping` → migration status constraint, persisted `succeeded` value, and public `completed` response are corroborated by current code/tests and the contract check.

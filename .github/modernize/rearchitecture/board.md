@@ -8,7 +8,7 @@
 
 ### Phase: Analysis
 - ✅ t1 [pm] Inventory remaining unchecked plan items and identify manual/external blockers (12:43:47Z→12:45:53Z, 2m 6s)
-- ⏳ t2 [architect] Final re-review after route, DTO, auth, and detection-status remediation; prior attempts reported HIGH/CRITICAL findings (second/final allowed retry) [deps: t1, t2.1, t2.2, t2.2.1, t2.3, t2.4]
+- ✅ t2 [architect] Final re-review after route, DTO, auth, and detection-status remediation; prior attempts reported HIGH/CRITICAL findings (second/final allowed retry) (15:15:32Z→15:18:27Z, 2m 55s) [deps: t1, t2.1, t2.2, t2.2.1, t2.3, t2.4]
 
 ### Phase: Remediation 📌 8a2514d
 - ✅ t2.1 [backend] Re-verify the repaired API runtime, route wiring, and tests; previous attempt reported CRITICAL findings and requires a fresh clean PASS (13:56:27Z→13:59:37Z, 3m 10s) [deps: t2.1.1, t2.1.2, t2.1.3, t2.1.4]
@@ -17,7 +17,7 @@
 - ✅ t2.1.3 [backend] Re-verify proxy persistence after proxy-key remediation; prior attempt failed with HIGH and now requires a fresh clean PASS (13:53:08Z→13:55:10Z, 2m 2s) [deps: t1, t2.1.2, t2.1.4]
 - ✅ t2.1.4 [backend] Implement and test repo-supported X-Overcall-Key verification for proxy requests (13:43:13Z→13:51:28Z, 8m 15s) [deps: t1, t2.1.2]
 
-### Phase: Integration remediation
+### Phase: Integration remediation 📌 32e2b70
 - ✅ t2.2 [frontend] Final re-verification of browser API/proxy integration after detection-status remediation; prior attempts reported HIGH/CRITICAL findings (15:04:47Z→15:13:32Z, 8m 45s) [deps: t1, t2.1, t2.2.1, t2.3, t2.4]
 - ✅ t2.2.1 [frontend] Align frontend DTOs with versioned backend response schemas and verify the affected signed-in flow (completed 14:37:38Z; start time unavailable) [deps: t1, t2.1.2, t2.3]
 - ✅ t2.3 [backend] Implement and test repo-supported current-user authentication required by B10 (14:07:53Z→14:18:44Z, 10m 51s) [deps: t1, t2.1]
