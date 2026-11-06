@@ -36,17 +36,19 @@
 - ✅ t13 [backend] Verify in-process mock upstream (15:52:04Z→15:54:08Z, 2m 4s)
 - 🚫 blocked t21 [frontend] Check real Supabase email and Google authentication — no project URL/key or CLI, no verifiable Email/Google provider configuration; `docs/PLAN.md` item remains unchecked
 
-### Phase: Foundation-dependent checks
+### Phase: Foundation-dependent checks 📌 78d5b58
 - ✅ t5 [dba] Check development Supabase migration gate (16:04:00Z→16:05:30Z, 1m 30s) — B1-02 remains unchecked: no Supabase CLI/project credentials [deps: t4]
 - ✅ t8 [backend] Verify synthetic generator and fixtures (16:03:56Z→16:06:07Z, 2m 11s) — B3-04 remains open; no baseline tag or fixture mutation [deps: t7]
 - ✅ t11 [backend] Complete ingest-key lifecycle and isolation (16:03:47Z→16:20:28Z, 16m 41s) [deps: t4]
 - ✅ t27 [devops] Reconcile deployment configuration locally (16:03:53Z→16:18:24Z, 14m 31s) — production checks remain open; npm advisories require t33 scan [deps: t4]
 
 ### Phase: API and transport checks
-- ⏳ t9 [backend] Verify atomic detection and Tier 1 rules [deps: t8]
-- ⏳ t12 [backend] Verify versioned API isolation and fixtures [deps: t4, t11]
-- ⏳ t14 [backend] Verify proxy metadata persistence and redaction [deps: t4, t11, t13]
-- ⏳ t28 [devops] Check production deployment verification gate [deps: t27]
+- ✅ t9 [backend] Verify atomic detection and Tier 1 rules (16:23:50Z→16:31:45Z, 7m 55s) [deps: t8]
+- ✅ t12 [backend] Verify versioned API isolation and fixtures (16:24:34Z→16:39:55Z, 15m 21s) [deps: t4, t11]
+- ✅ t14 [backend] Verify proxy metadata persistence and redaction (16:24:24Z→16:32:44Z, 8m 20s) [deps: t4, t11, t13]
+- ✅ t28 [devops] Recheck production deployment verification gate after HIGH remediation (16:57:11Z→16:59:05Z, 1m 54s) — no HIGH/CRITICAL findings; production checks remain unchecked pending default-branch workflow, hosted secrets, and authorized URL/access [deps: t27, t28.1, t28.2]
+- ✅ t28.1 [backend] Remediate HIGH: implement protected internal database-size endpoint for supported production checks (16:42:07Z→16:49:28Z, 7m 21s) [deps: t27]
+- ✅ t28.2 [devops] Remediate HIGH: add safe keep-alive workflow after endpoint is available (16:50:49Z→16:55:22Z, 4m 33s) [deps: t27, t28.1]
 
 ### Phase: Follow-on implementation checks
 - ⏳ t10 [backend] Verify shared rules and Tier 3 gates [deps: t8, t9]

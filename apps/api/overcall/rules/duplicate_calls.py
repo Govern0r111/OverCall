@@ -1,7 +1,17 @@
 import statistics
 
 from ..pricing_config import PRICING
-from .base import PROVIDER_LABEL, Finding, Rule, by_endpoint, gap_s, group_by, is_ok, severity_for
+from .base import (
+    PROVIDER_LABEL,
+    Finding,
+    Rule,
+    by_endpoint,
+    gap_s,
+    group_by,
+    is_ok,
+    severity_for,
+    tier1_eligible,
+)
 
 FIXES = {
     "openai": "Debounce the UI action that triggers this call and keep an in-flight map keyed by payload hash so concurrent callers share one pending response. Cache the result for a few seconds.",
@@ -18,7 +28,9 @@ class DuplicateCalls(Rule):
     def detect(self, logs, ctx):
         short = ctx.w.short_window_s
         flagged, gaps = [], {}
-        for group in group_by(logs, lambda l: (l.provider, l.method, l.req_hash)).values():
+        for group in group_by(
+            tier1_eligible(logs), lambda l: (l.provider, l.method, l.req_hash)
+        ).values():
             for prev, cur in zip(group, group[1:]):
                 g = gap_s(prev, cur)
                 if g <= short and is_ok(prev.status):

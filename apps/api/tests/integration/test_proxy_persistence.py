@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import secrets
+import time
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -35,7 +37,7 @@ class FakeSession:
     def __init__(
         self,
         *,
-        fail_flush: bool = False,
+        fail_flush: bool | str = False,
         ingest_keys: list[IngestKey] | None = None,
     ) -> None:
         self.added: list[object] = []
@@ -44,6 +46,8 @@ class FakeSession:
         self.fail_flush = fail_flush
         self.flush_count = 0
         self.ingest_keys = ingest_keys or []
+        self.response_sent_at: float | None = None
+        self.commit_at: float | None = None
 
     def add(self, item: object) -> None:
         self.added.append(item)
@@ -56,10 +60,16 @@ class FakeSession:
     async def flush(self) -> None:
         self.flush_count += 1
         if self.fail_flush and self.flush_count > 1:
-            raise RuntimeError("simulated database failure")
+            failure = (
+                self.fail_flush
+                if isinstance(self.fail_flush, str)
+                else "simulated database failure"
+            )
+            raise RuntimeError(failure)
 
     async def commit(self) -> None:
         self.commit_count += 1
+        self.commit_at = time.perf_counter()
 
     async def rollback(self) -> None:
         self.rollback_count += 1
@@ -83,7 +93,12 @@ class FakeUpstreamClient:
         return self.response
 
 
-def _client(session: FakeSession, settings: Settings | None = None) -> TestClient:
+def _client(
+    session: FakeSession,
+    settings: Settings | None = None,
+    *,
+    observe_response: bool = False,
+) -> TestClient:
     app = create_app(
         settings
         or Settings(
@@ -98,6 +113,22 @@ def _client(session: FakeSession, settings: Settings | None = None) -> TestClien
         yield session
 
     app.dependency_overrides[get_db_session] = db_session
+    if observe_response:
+        fastapi_app = app
+
+        async def record_response(scope, receive, send) -> None:
+            async def record_send(message) -> None:
+                await send(message)
+                if (
+                    scope["type"] == "http"
+                    and message["type"] == "http.response.body"
+                    and not message.get("more_body", False)
+                ):
+                    session.response_sent_at = time.perf_counter()
+
+            await fastapi_app(scope, receive, record_send)
+
+        app = record_response
     return TestClient(app)
 
 
@@ -121,14 +152,17 @@ def _seed_key(
     return plaintext, row
 
 
-def test_proxy_returns_upstream_bytes_and_persists_metadata_only(monkeypatch) -> None:
+def test_proxy_returns_upstream_bytes_and_persists_metadata_only(monkeypatch, caplog) -> None:
     session = FakeSession()
     ingest_key, ingest_key_row = _seed_key(session)
     request_body = (
-        '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"' + REQUEST_SENTINEL + '"}]}'
+        '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"'
+        + REQUEST_SENTINEL
+        + ' sk_test_1234567890ABCDEF"}]}'
     ).encode()
     upstream_body = (
-        b'{"model":"gpt-4o-mini","usage":{"prompt_tokens":12,"completion_tokens":4},"choices":[]}'
+        b'{"model":"gpt-4o-mini","usage":{"prompt_tokens":12,"completion_tokens":4},'
+        b'"choices":[],"echo":"response-body-sentinel sk-proj-abcdefghijklmnop1234"}'
     )
     upstream = FakeUpstreamClient(
         httpx.Response(207, content=upstream_body, headers={"x-upstream-id": "up_123"})
@@ -136,7 +170,8 @@ def test_proxy_returns_upstream_bytes_and_persists_metadata_only(monkeypatch) ->
     monkeypatch.setattr(proxy, "mock_client", upstream)
     monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
 
-    with _client(session) as client:
+    caplog.set_level(logging.WARNING, logger="overcall.proxy")
+    with _client(session, observe_response=True) as client:
         response = client.post(
             "/proxy/openai/v1/chat/completions",
             content=request_body,
@@ -178,10 +213,20 @@ def test_proxy_returns_upstream_bytes_and_persists_metadata_only(monkeypatch) ->
     assert row.cost_usd >= 0
     assert row.pricing_version
     assert session.commit_count == 1
-    assert REQUEST_SENTINEL not in repr(row.model_dump())
-    assert "provider-secret" not in repr(row.model_dump())
-    assert ingest_key not in repr(row.model_dump())
+    row_text = repr(row.model_dump())
+    for sensitive_value in (
+        REQUEST_SENTINEL,
+        "response-body-sentinel",
+        "sk_test_1234567890ABCDEF",
+        "sk-proj-abcdefghijklmnop1234",
+        ingest_key,
+    ):
+        assert sensitive_value not in row_text
+        assert sensitive_value not in caplog.text
     assert ingest_key_row.last_used_at is not None
+    assert session.response_sent_at is not None
+    assert session.commit_at is not None
+    assert 0 <= session.commit_at - session.response_sent_at < 2
 
 
 def test_proxy_reaches_mock_upstream_in_process(monkeypatch) -> None:
@@ -206,14 +251,16 @@ def test_proxy_reaches_mock_upstream_in_process(monkeypatch) -> None:
     assert session.added[0].source == "proxy"
 
 
-def test_proxy_logging_failure_does_not_change_upstream_response(monkeypatch) -> None:
-    session = FakeSession(fail_flush=True)
+def test_proxy_logging_failure_does_not_change_upstream_response(monkeypatch, caplog) -> None:
+    failure_secret = "sk_test_1234567890ABCDEF"
+    session = FakeSession(fail_flush=f"simulated database failure token={failure_secret}")
     ingest_key, _ = _seed_key(session)
     upstream_body = b'{"error":"upstream response"}'
     upstream = FakeUpstreamClient(httpx.Response(503, content=upstream_body))
     monkeypatch.setattr(proxy, "mock_client", upstream)
     monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
 
+    caplog.set_level(logging.WARNING, logger="overcall.proxy")
     with _client(session) as client:
         response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
 
@@ -221,12 +268,64 @@ def test_proxy_logging_failure_does_not_change_upstream_response(monkeypatch) ->
     assert response.content == upstream_body
     assert session.rollback_count == 1
     assert session.commit_count == 0
+    assert failure_secret not in caplog.text
+    assert failure_secret not in response.text
+    assert "proxy_log_write_failed" in caplog.text
+
+
+def test_proxy_log_preparation_exception_is_redacted_and_upstream_response_is_preserved(
+    monkeypatch, caplog
+) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session)
+    upstream_body = b'{"model":"gpt-4o-mini","usage":{"prompt_tokens":2,"completion_tokens":1}}'
+    upstream = FakeUpstreamClient(httpx.Response(207, content=upstream_body))
+    preparation_secret = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.signature12345678"
+
+    def fail_cost_calculation(*_args, **_kwargs):
+        raise RuntimeError(f"token={preparation_secret}")
+
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    monkeypatch.setattr(proxy, "calculate_cost", fail_cost_calculation)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    caplog.set_level(logging.WARNING, logger="overcall.proxy")
+    with _client(session) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 207
+    assert response.content == upstream_body
+    assert session.added == []
+    assert preparation_secret not in caplog.text
+    assert preparation_secret not in response.text
+    assert "proxy_log_prepare_failed" in caplog.text
+
+
+def test_proxy_upstream_error_body_is_not_persisted_or_logged(monkeypatch, caplog) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session)
+    error_secret = "sk_test_1234567890ABCDEF"
+    upstream_body = f'{{"error":"upstream rejected token={error_secret}"}}'.encode()
+    upstream = FakeUpstreamClient(httpx.Response(503, content=upstream_body))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    caplog.set_level(logging.WARNING, logger="overcall.proxy")
+    with _client(session) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 503
+    assert response.content == upstream_body
+    assert len(session.added) == 1
+    log_text = repr(session.added[0].model_dump())
+    assert error_secret not in log_text
+    assert error_secret not in caplog.text
 
 
 def test_malformed_upstream_metadata_does_not_change_upstream_response(monkeypatch) -> None:
     session = FakeSession()
     ingest_key, _ = _seed_key(session)
-    upstream_body = b'{"usage":"unexpected"}'
+    upstream_body = b'{"usage":"unexpected","echo":"response-body-sentinel"}'
     upstream = FakeUpstreamClient(httpx.Response(200, content=upstream_body))
     monkeypatch.setattr(proxy, "mock_client", upstream)
     monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
@@ -236,6 +335,8 @@ def test_malformed_upstream_metadata_does_not_change_upstream_response(monkeypat
 
     assert response.status_code == 200
     assert response.content == upstream_body
+    assert len(session.added) == 1
+    assert "response-body-sentinel" not in repr(session.added[0].model_dump())
 
 
 def test_proxy_rejects_missing_ingest_key() -> None:

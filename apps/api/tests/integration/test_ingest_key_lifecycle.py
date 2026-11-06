@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import time
 from uuid import UUID, uuid4
 
 import pytest
@@ -177,10 +178,60 @@ def test_ingest_key_create_list_use_and_revoke_lifecycle(api_and_database, caplo
     assert plaintext not in caplog.text
 
     # Proxy use validates the stored digest and updates last_used_at without caching auth.
-    used = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": plaintext})
+    body_sentinel = "proxy-metadata-test-body-sentinel"
+    started = time.perf_counter()
+    used = client.post(
+        "/proxy/openai/v1/chat/completions",
+        json={
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": body_sentinel}],
+        },
+        headers={"x-overcall-key": plaintext},
+    )
     assert used.status_code == 200
     used_key = client.get("/v1/ingest-keys").json()[0]
     assert used_key["last_used_at"] is not None, caplog.text
+
+    async def stored_proxy_log() -> dict:
+        async with engine.connect() as connection:
+            row = (
+                (
+                    await connection.execute(
+                        text(
+                            """
+                        select id, ingest_key_id, source, origin, provider, endpoint, status,
+                               req_size, resp_size, req_hash, model, prompt_tokens,
+                               completion_tokens, cost_basis, pricing_version
+                        from public.request_logs
+                        where user_id = :user_id and ingest_key_id = :key_id
+                        order by occurred_at desc
+                        limit 1
+                        """
+                        ),
+                        {"user_id": owner_id, "key_id": key_id},
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return dict(row)
+
+    proxy_log = asyncio.run(stored_proxy_log())
+    assert time.perf_counter() - started < 2
+    assert proxy_log["ingest_key_id"] == key_id
+    assert proxy_log["source"] == "proxy"
+    assert proxy_log["origin"] == "upstream"
+    assert proxy_log["provider"] == "openai"
+    assert proxy_log["endpoint"] == "/v1/chat/completions"
+    assert proxy_log["status"] == 200
+    assert proxy_log["req_size"] > 0
+    assert proxy_log["resp_size"] > 0
+    assert proxy_log["req_hash"]
+    assert proxy_log["cost_basis"] == "billed"
+    assert proxy_log["pricing_version"]
+    assert body_sentinel not in repr(proxy_log)
+    assert plaintext not in repr(proxy_log)
+    assert plaintext not in caplog.text
 
     for index in range(4):
         response = client.post("/v1/ingest-keys", json={"name": f"worker-{index}"})

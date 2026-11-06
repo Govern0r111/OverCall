@@ -1,0 +1,89 @@
+name: API keep-alive and database alert
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  readiness:
+    name: Keep the API and database ready
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *' || github.event.schedule == '17 3 * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_URL: ${{ secrets.API_URL }}
+    steps:
+      - name: Validate API URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${API_URL:-}" || "$API_URL" != https://* ]]; then
+            echo "::error::Set the API_URL Actions secret to the HTTPS API origin."
+            exit 1
+          fi
+
+      - name: Check API readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="${API_URL%/}"
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --retry 2 --retry-delay 3 --retry-all-errors \
+            --output /dev/null \
+            "$api_url/readyz"
+
+  database_size:
+    name: Alert when database usage exceeds 80 percent
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_URL: ${{ secrets.API_URL }}
+      INTERNAL_TOKEN: ${{ secrets.INTERNAL_TOKEN }}
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${API_URL:-}" || "$API_URL" != https://* ]]; then
+            echo "::error::Set the API_URL Actions secret to the HTTPS API origin."
+            exit 1
+          fi
+          if [[ -z "${INTERNAL_TOKEN:-}" ]]; then
+            echo "::error::Set the INTERNAL_TOKEN Actions secret to the API internal bearer token."
+            exit 1
+          fi
+
+      - name: Check database size
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="${API_URL%/}"
+          response="$(curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --retry 2 --retry-delay 3 --retry-all-errors \
+            --header "Authorization: Bearer ${INTERNAL_TOKEN}" \
+            "$api_url/internal/db-size")"
+
+          if ! jq -e '
+            type == "object" and
+            (.bytes | type == "number" and . >= 0 and floor == .) and
+            .limit_bytes == 524288000 and
+            (.percent | type == "number" and . >= 0)
+          ' >/dev/null <<<"$response"; then
+            echo "::error::The database-size endpoint returned an invalid response."
+            exit 1
+          fi
+
+          bytes="$(jq -er '.bytes' <<<"$response")"
+          percent="$(jq -er '.percent' <<<"$response")"
+          printf 'Database usage: %s%% (%s of 524288000 bytes).\n' "$percent" "$bytes"
+          if jq -e '.percent > 80' >/dev/null <<<"$response"; then
+            echo "::error::Database usage exceeded the 80 percent alert threshold."
+            exit 1
+          fi

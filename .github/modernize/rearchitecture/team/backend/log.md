@@ -95,3 +95,31 @@
 - Debugging dead-ends and what actually worked: Docker daemon availability was rechecked after an initial transient negative probe. A uniquely named Compose Postgres project allowed real lifecycle, cross-tenant ID-route, concurrency-limit, pepper-rotation, and startup HTTP verification; the temporary API process, users, container, and volume were removed afterward.
 - Techniques/patterns worth reusing for future tasks: Use a user-scoped SQL update for idempotent revocation, per-user transaction advisory locking around active-key counting, and a response schema that never includes plaintext in list results. Probe protected routes over local HTTP with a locally minted test JWT, not external provider credentials.
 - Learnings consumed: [backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary, backend/supabase-jwks-jwt-authentication]
+
+## [t12] Verified B6 versioned API isolation and response shapes
+- Codebase/domain discoveries: B6 has 16 JSON-producing operations with response models; ingest-key JSON routes are separately owned by B10 and 204 operations have no response body.
+- Wrong assumptions and corrections: A response shape fixture should not duplicate volatile sample values; stable object/array property paths make shape parity deterministic while contract drift and existing exact examples cover types and values.
+- Debugging dead-ends and what actually worked: The first fixture draft omitted `cost_usd` and `endpoint` from the log-list shape and had settings threshold paths at the wrong level. The new response-to-fixture test exposed both before the final suite passed.
+- Techniques/patterns worth reusing for future tasks: Compare nested property paths for every JSON response, assert top-level fields against the hand-authored OpenAPI contract, and run cross-tenant route tests against a fresh uniquely named Compose Postgres project.
+- Learnings consumed: [backend/openapi-contract-drift, backend/sqlmodel-api-persistence-boundary, backend/supabase-jwks-jwt-authentication]
+
+## [t9] Verified atomic detection and Tier 1 rules
+- Codebase/domain discoveries: The mounted detection path is `v1_api._perform_detection` with SQLModel repositories; `overcall/engine.py` is the stale collection-backed path. Tier 1 rules previously grouped all provider/origin rows without filtering unsupported AWS and Overcall-origin traffic.
+- Wrong assumptions and corrections: A fake session or static inspection alone would not demonstrate rollback behavior. A PostgreSQL test that fails the flush after the issue delete confirms prior issue/run state survives the actual transaction rollback.
+- Debugging dead-ends and what actually worked: No `TEST_DATABASE_URL` was present initially. A uniquely named, disposable local PostgreSQL container on a temporary port, initialized from migrations, enabled the full API suite and the injected failure test; the container was removed after verification.
+- Techniques/patterns worth reusing for future tasks: Centralize Tier 1 input eligibility in `rules/base.py` and apply it before grouping. Test both deterministic threshold boundaries and labeled positive/hard-negative fixture behavior. Inject failure after the destructive SQL operation when testing rollback boundaries.
+- Learnings consumed: [backend/detection-run-status-boundary, backend/sqlmodel-api-persistence-boundary, backend/pricing-source-revalidation]
+
+## [t14] Verified proxy metadata persistence and redaction
+- Codebase/domain discoveries: The proxy schedules `persist_proxy_log` through FastAPI `BackgroundTasks`; the committed RequestLog stores metadata, not request/response bodies or plaintext ingest keys.
+- Wrong assumptions and corrections: TestClient waits for background work, so response latency alone cannot prove off-request-path ordering. An ASGI send wrapper confirmed the final response body was sent before the commit; isolated PostgreSQL read-back independently confirmed durable metadata.
+- Debugging dead-ends and what actually worked: The request-log lifecycle already existed in the key integration test; extending that flow with a body sentinel and row read-back provided real database evidence without modifying production code.
+- Techniques/patterns worth reusing for future tasks: Pair real DB read-back with response-event ordering for background persistence; keep upstream response bytes unchanged while verifying sensitive body values never enter metadata or logs.
+- Learnings consumed: [backend/proxy-ingest-key-verification, backend/mock-upstream-location, backend/sqlmodel-api-persistence-boundary, architect/disconnected-api-runtime-boundary]
+
+## [t28.1] Added protected internal database-size endpoint
+- Codebase/domain discoveries: Production Settings already require `INTERNAL_TOKEN`; the mounted app uses a FastAPI factory and PostgreSQL AsyncSession dependency, while JWT and ingest-key auth remain distinct.
+- Wrong assumptions and corrections: The production checklist could not be marked complete from a successful local endpoint probe; the scheduled workflow, GitHub secrets, hosted alert delivery, and production access remain absent.
+- Debugging dead-ends and what actually worked: An initial PowerShell assertion mishandled curl's multi-line output; parsing the JSON response separately produced reliable live HTTP checks against isolated PostgreSQL.
+- Techniques/patterns worth reusing for future tasks: Authenticate an internal route before opening its database session, compare the bearer token in constant time, conceal access failures with 404, and keep the route out of generated OpenAPI. Verify the SQL function with real local PostgreSQL and separately probe missing, wrong, and valid credentials over HTTP.
+- Learnings consumed: [backend/supabase-jwks-jwt-authentication, backend/sqlmodel-api-persistence-boundary, devops/db-size-alert-prerequisites]

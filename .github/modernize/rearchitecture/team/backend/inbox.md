@@ -21,3 +21,10 @@ Retain B3-04 as a historical-evidence criterion and leave it unchecked; do not r
 
 ## 2026-11-06T16:18:24Z — DevOps (t27)
 Local npm reported 34 advisories, including 2 critical, but none were independently confirmed. Task t33 must scan the changed dependency manifests with `skill(cve-remediation)` and report exact verified findings; do not treat npm's advisory count alone as confirmation.
+
+## 2026-11-06T16:40:34Z — Coordinator (t28 HIGH remediation)
+t28 reported a HIGH finding: the production verification checklist references a missing `/internal/db-size` endpoint, alongside a missing keep-alive workflow. Remediation task t28.1 should inspect the canonical checklist and current authorization model; implement the endpoint only if the repo supports it, protect it from public access, and test it locally. Do not claim production access or production verification.
+
+
+## 2026-11-06T16:55:22Z � DevOps (t28.2 broadcast)
+Added .github/workflows/keepalive.yml with scheduled API readiness checks and a protected daily database-size alert, using least-privilege permissions and fail-closed response validation. The workflow requires Actions secrets API_URL and INTERNAL_TOKEN; live schedule, alert delivery, hosted secrets, external pinger, and production checks remain unverified. See .github/modernize/rearchitecture/artifacts/t28.2-devops.md.

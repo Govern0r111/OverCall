@@ -62,6 +62,11 @@ def by_endpoint(flagged: List[RequestLog]) -> dict:
     return group_by(flagged, lambda l: (l.provider, l.endpoint))
 
 
+def tier1_eligible(logs: list[RequestLog]) -> list[RequestLog]:
+    """Exclude Overcall-origin traffic and unsupported AWS rows from Tier 1 rules."""
+    return [log for log in logs if log.origin != "overcall" and log.provider != "aws"]
+
+
 def severity_for(monthly_usd: float, critical_at: float = 20.0, warning_at: float = 2.0) -> str:
     if monthly_usd >= critical_at:
         return "critical"

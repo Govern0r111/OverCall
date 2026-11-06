@@ -387,7 +387,8 @@ Base path `/v1`. Auth is the Supabase JWT unless stated. Every error uses §3.4.
 |---|---|---|
 | `GET /healthz` | none | `200 {"status":"ok","release":"…"}`. No DB access (used to wake Render) |
 | `GET /readyz` | none | `200 {"status":"ok"}` after `select 1`. `503` with `error.code="not_ready"` otherwise (used by keep-alive) |
-| `GET /internal/db-size`, `POST /internal/purge` | `Authorization: Bearer <INTERNAL_TOKEN>` | Operator-only (B11). Without the token they return `404`, so they are not discoverable. `db-size` returns `{"bytes":N,"limit_bytes":524288000,"percent":N}` |
+| `GET /internal/db-size` | `Authorization: Bearer <INTERNAL_TOKEN>` | Operator-only (B11). Without a configured token or valid bearer token it returns `404`, so it is not discoverable. Returns `{"bytes":N,"limit_bytes":524288000,"percent":N}`. |
+| `POST /internal/purge` | Planned; not implemented | Operator-only (B11). |
 
 #### Account and shell
 
@@ -1105,10 +1106,12 @@ class Rule(Protocol):
 **Edge cases:** identical timestamps. Very large groups (performance budget: 100 000 rows under 2 s). `window_days < 1` sets `projection_low_confidence`. Rows with `status` 0. A rule raising mid-way. Settings that disable every rule.
 
 **Done when**
-- [ ] A rerun replaces issues atomically and never leaves a half state.
-- [ ] Tier 1 rules pass their unit and hard-negative tests.
+- [x] A rerun replaces issues atomically and never leaves a half state.
+- [x] Tier 1 rules pass their unit and hard-negative tests.
 - [ ] Evaluate reports precision and recall per rule on synthetic data.
 - [ ] Spend and reliability totals are kept apart in storage.
+
+**Verification note (2026-11-06):** A disposable local PostgreSQL integration test injects an issue-flush failure after the prior issue deletion and confirms the previous issue and run remain unchanged. Tier 1 unit tests cover duplicate-call, missing-cache, and retry-storm boundaries and hard negatives; all three detect their labeled positives in the small synthetic dataset without flagging its hard negatives. The rules now exclude `origin='overcall'` and `provider='aws'` inputs. See `.github/modernize/rearchitecture/artifacts/t9-backend.md`.
 
 ### B5 — Tier 2 and Tier 3 rules · size M
 
@@ -1158,10 +1161,10 @@ class Rule(Protocol):
 
 **Done when**
 - [x] The backend drift check against `contract/openapi.yaml` passes.
-- [ ] Isolation and gating tests pass.
-- [ ] Every response shape equals the corresponding fixture shape.
+- [x] Isolation and gating tests pass.
+- [x] Every response shape equals the corresponding fixture shape.
 
-Verification note (2026-11-06): The generated OpenAPI drift check now compares versioned paths, methods, successful statuses, response model/property names, required fields, and property types; it passes for all 17 versioned paths. The current contract suite verifies Tier 3 gating and exact fixtures for overview-empty and default settings only. Comprehensive two-user isolation across id-taking routes and fixture equality for every response remain unverified.
+Verification note (2026-11-06): The generated OpenAPI drift check compares versioned paths, methods, successful statuses, response model/property names, required fields, and property types; it passes for all 19 versioned paths. The two-user PostgreSQL integration test verifies foreign issue/log IDs return 404 and foreign-key revocation is a no-op; the Tier 3 API gate test also passes. `contract/fixtures/api/response-shapes.json` and `test_every_versioned_json_response_matches_contract_fixture_shape` cover the 16 JSON-producing B6 operations, compare nested object/array property paths, and verify top-level properties against OpenAPI. Ingest-key response behavior remains under B10; 204 responses have no JSON body to fixture.
 
 ### B7 — Mock OpenAI upstream · size S
 
@@ -1219,9 +1222,11 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 
 **Done when**
 - [x] A request through the proxy returns exactly what the upstream returned. Verified for status, body, and a forwarded response header by `apps/api/tests/integration/test_proxy_persistence.py`.
-- [ ] A metadata-only row appears within about two seconds, written off the request path.
-- [ ] Redaction and no-body sentinel tests pass.
+- [x] A metadata-only row appears within about two seconds, written off the request path.
+- [x] Redaction and no-body sentinel tests pass.
 - [x] Auth fails closed. Logging fails open. Verified by `apps/api/tests/integration/test_proxy_persistence.py`: missing, unknown, and revoked keys are rejected; a valid stored key reaches the mock upstream; simulated log persistence failure preserves the upstream response.
+
+Verification note (2026-11-06): `test_ingest_key_create_list_use_and_revoke_lifecycle` persisted and read back a proxy `request_logs` row from isolated Docker PostgreSQL within the two-second bound, with no request-body sentinel or plaintext key. `test_proxy_returns_upstream_bytes_and_persists_metadata_only` confirmed the metadata commit follows the ASGI response-body send and remains under two seconds; proxy success, log-write failure, and log-preparation exception paths preserve upstream responses without exposing sentinels or credentials in rows/logs. `test_log_messages_and_exceptions_redact_credentials`, `test_redactor_covers_proxy_credential_formats`, and `test_request_log_has_only_metadata_columns` passed. This is local verification only; no production/provider credentials were used.
 
 ### B9 — SSE streaming pass-through · size M
 
@@ -1390,6 +1395,8 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 - [ ] Keep-alive runs and the DB-size alert works.
 - [ ] No secret is in the repo, Vercel public variables or logs.
 - [x] The upgrade path to an always-on API is a one-line change in `render.yaml` (locally verified: only `plan: free` → `plan: starter` changes).
+
+**Open verification blockers (2026-11-06; rechecked after local remediation):** the three production checks above remain unchecked. No Render, Vercel or Supabase CLI, production URL/credentials, or production-service access is available. GitHub repository read access is available, but `gh workflow list` shows only `API CI`, `gh run list --workflow keepalive.yml` returns HTTP 404, and `gh secret list` shows no repository Actions secrets; the local `.github/workflows/keepalive.yml` therefore is not yet registered remotely. It still needs to be published to the default branch, configured with `API_URL` and `INTERNAL_TOKEN`, and run against the deployed API before keep-alive/alert operation can be verified. No production smoke test, alert delivery, or hosted variable/log review was performed. GitHub scheduled runs are best-effort and still require an external pinger backup. A limited high-confidence-pattern scan of tracked files produced no hits, but it is not a comprehensive secret audit and does not verify Vercel variables or hosted logs.
 
 ---
 
@@ -1600,7 +1607,7 @@ select cron.schedule('overcall-purge', '17 3 * * *', $$select public.purge_old_l
 | In-memory queue and rate limits | Lost on restart, not shared across instances | Single instance (A1), flush on SIGTERM, documented loss window |
 | GitHub scheduled workflows are best-effort and pause after 60 days without repo activity | Keep-alive could silently stop | Add a free external pinger as a backup |
 
-**Keep-alive workflow (`.github/workflows/keepalive.yml`):** cron every 10 minutes: `curl -fsS $API_URL/readyz`. Once a day: `curl -fsS -H "Authorization: Bearer $INTERNAL_TOKEN" $API_URL/internal/db-size` and fail the job (so GitHub emails you) when usage exceeds 80 % of 500 MB.
+**Keep-alive workflow (`.github/workflows/keepalive.yml`):** check `/readyz` every 10 minutes and once a day. The daily run also calls the protected `/internal/db-size` endpoint with a bearer token and fails the job when usage exceeds 80 % of 500 MiB. Configure repository Actions secrets `API_URL` (HTTPS API origin) and `INTERNAL_TOKEN` (matching the API's `INTERNAL_TOKEN`). `workflow_dispatch` runs both checks on demand. A failed job is visible in Actions; email/other notifications depend on the repository and user's notification settings. GitHub schedules are best-effort and may stop after 60 days without repository activity, so an external pinger is still needed as a backup.
 
 **Supabase setup (production)**
 1. Create the project. Enable the Email provider (confirmation on) and Google (client id and secret, with Supabase's callback URL added in Google Cloud).

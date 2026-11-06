@@ -1,4 +1,13 @@
-from .base import PROVIDER_LABEL, Finding, Rule, gap_s, group_by, is_ok, severity_for
+from .base import (
+    PROVIDER_LABEL,
+    Finding,
+    Rule,
+    gap_s,
+    group_by,
+    is_ok,
+    severity_for,
+    tier1_eligible,
+)
 
 FIX = (
     "Retry with exponential backoff and jitter (for example 0.5s, 1s, 2s, 4s, capped at 5 attempts) and honor the "
@@ -28,7 +37,9 @@ class RetryStorm(Rule):
     def detect(self, logs, ctx):
         w = ctx.w
         chains = []
-        for group in group_by(logs, lambda l: (l.provider, l.method, l.req_hash)).values():
+        for group in group_by(
+            tier1_eligible(logs), lambda l: (l.provider, l.method, l.req_hash)
+        ).values():
             chains += find_chains(group, w.retry_min_backoff_ms, w.retry_min_attempts)
         findings = []
         for (prov, ep), ch in group_by(chains, lambda c: (c[0].provider, c[0].endpoint)).items():

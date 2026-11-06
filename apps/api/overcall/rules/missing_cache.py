@@ -1,5 +1,15 @@
 from ..pricing_config import PRICING
-from .base import PROVIDER_LABEL, Finding, Rule, by_endpoint, gap_s, group_by, is_ok, severity_for
+from .base import (
+    PROVIDER_LABEL,
+    Finding,
+    Rule,
+    by_endpoint,
+    gap_s,
+    group_by,
+    is_ok,
+    severity_for,
+    tier1_eligible,
+)
 
 FIXES = {
     "openai": "Store results keyed by a hash of the input (identical inputs always return the same embedding / list). An in-memory LRU or Redis with a TTL of a few minutes is enough.",
@@ -20,7 +30,7 @@ class MissingCache(Rule):
     def detect(self, logs, ctx):
         short, long_ = ctx.w.short_window_s, ctx.w.long_window_s
         flagged = []
-        candidates = [l for l in logs if cacheable(l)]
+        candidates = [l for l in tier1_eligible(logs) if cacheable(l)]
         for group in group_by(candidates, lambda l: (l.provider, l.method, l.req_hash)).values():
             for prev, cur in zip(group, group[1:]):
                 if short < gap_s(prev, cur) <= long_ and is_ok(prev.status):

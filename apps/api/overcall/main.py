@@ -13,6 +13,7 @@ from .auth.jwt import SupabaseJWTVerifier
 from .config import Settings, get_settings
 from .db.engine import create_database_engine
 from .errors import OvercallError, register_error_handlers, unhandled_error_handler
+from .internal_api import router as internal_router
 from .logging import configure_logging, get_logger, reset_request_id, set_request_id
 from .proxy import router as proxy_router
 from .v1_api import router as v1_router
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allowed_algorithms=app_settings.jwt_allowed_algorithms,
     )
     register_error_handlers(app)
+    app.include_router(internal_router)
     app.include_router(v1_router)
     app.include_router(proxy_router)
     app.add_middleware(VersionedCorsMiddleware, settings=app_settings)

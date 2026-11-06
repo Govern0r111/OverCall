@@ -340,9 +340,7 @@ def test_provider_endpoint_exposes_active_versioned_pricing(api_client: TestClie
         pricing = providers[provider_name]["pricing"]
         assert pricing["version"] == expected.version
         assert pricing["source_url"] == expected.source_url
-        assert {
-            row["label"]: row["usd_per_1m"] for row in pricing["rows"]
-        } == {
+        assert {row["label"]: row["usd_per_1m"] for row in pricing["rows"]} == {
             f"{model_name} input": float(model.input_per_1m)
             for model_name, model in expected.models.items()
         }
@@ -418,6 +416,85 @@ def test_default_settings_response_matches_contract_fixture(
     response = client.get("/v1/settings")
     assert response.status_code == 200
     assert response.json() == fixture
+
+
+def _response_shape_paths(value: object, prefix: str = "") -> list[str]:
+    """Return object-property paths, marking array items with `[]`."""
+    paths: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            path = f"{prefix}/{key}"
+            paths.append(path)
+            paths.extend(_response_shape_paths(child, path))
+    elif isinstance(value, list):
+        path = f"{prefix}/[]"
+        paths.append(path)
+        for child in value:
+            paths.extend(_response_shape_paths(child, path))
+    return paths
+
+
+def test_every_versioned_json_response_matches_contract_fixture_shape(
+    api_client: TestClient,
+) -> None:
+    fixture_path = ROOT / "contract" / "fixtures" / "api" / "response-shapes.json"
+    response_shapes = json.loads(fixture_path.read_text(encoding="utf-8"))
+    contract = json.loads((ROOT / "contract" / "openapi.yaml").read_text(encoding="utf-8"))
+    operations = {
+        operation["operationId"]: operation
+        for path, methods in contract["paths"].items()
+        # Ingest-key responses have separate B10 lifecycle tests; 204s have no JSON model.
+        if path.startswith("/v1/") and not path.startswith("/v1/ingest-keys")
+        for operation in methods.values()
+        if "x-response-model" in operation
+    }
+
+    settings_body = api_client.get("/v1/settings").json()
+    settings_body.pop("updated_at")
+    responses = {
+        "get_me": api_client.get("/v1/me"),
+        "get_overview": api_client.get("/v1/overview"),
+        "list_issues": api_client.get("/v1/issues"),
+        "get_issue": api_client.get(f"/v1/issues/{ISSUE_ID}"),
+        "list_logs": api_client.get("/v1/logs?q=abcd"),
+        "log_facets": api_client.get("/v1/logs/facets"),
+        "get_log": api_client.get(f"/v1/logs/{LOG_ID}"),
+        "providers": api_client.get("/v1/providers"),
+        "get_settings": api_client.get("/v1/settings"),
+        "update_settings": api_client.put("/v1/settings", json=settings_body),
+        "reset_settings": api_client.post("/v1/settings/reset", json={"confirm": True}),
+        "get_rules": api_client.get("/v1/rules"),
+        "run_detection": api_client.post("/v1/detection/run"),
+        "latest_detection_run": api_client.get("/v1/detection/runs/latest"),
+        "accuracy": api_client.get("/v1/accuracy"),
+        "load_demo": api_client.post("/v1/demo/load", json={"seed": 42, "days": 1}),
+    }
+
+    assert set(response_shapes) == set(operations) == set(responses)
+    for operation_id, response in responses.items():
+        operation = operations[operation_id]
+        assert response.status_code == 200, (
+            operation_id,
+            response.status_code,
+            response.text,
+        )
+        actual_paths = sorted(set(_response_shape_paths(response.json())))
+        assert actual_paths == response_shapes[operation_id], operation_id
+
+        if operation.get("x-response-container") == "array":
+            prefix = "/[]/"
+            actual_properties = {
+                path[len(prefix) :]
+                for path in response_shapes[operation_id]
+                if path.startswith(prefix) and "/" not in path[len(prefix) :]
+            }
+        else:
+            actual_properties = {
+                path[1:]
+                for path in response_shapes[operation_id]
+                if path.startswith("/") and path.count("/") == 1
+            }
+        assert actual_properties == set(operation["x-response-properties"]), operation_id
 
 
 def test_cursor_is_keyset_encoded_and_tamper_safe() -> None:
