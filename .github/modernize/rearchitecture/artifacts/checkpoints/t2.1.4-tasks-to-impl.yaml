@@ -1,0 +1,68 @@
+metadata:
+  generated: "2026-11-06T13:43:13Z"
+  source_tasks: "Task assignment t2.1.4"
+  last_updated: "2026-11-06T13:51:15Z"
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+tasks:
+  - task_id: "t2.1.4"
+    description: "Implement and test repo-supported X-Overcall-Key verification for proxy requests"
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/api/overcall/auth/ingest_keys.py"
+          change_type: "added"
+          description: "HMAC-SHA256 key digest helper."
+        - file: "apps/api/overcall/db/repos/ingest_keys.py"
+          change_type: "added"
+          description: "Digest-based SQLModel repository lookup."
+        - file: "apps/api/overcall/deps.py"
+          change_type: "modified"
+          description: "Fail-closed proxy ingest-key authentication dependency."
+        - file: "apps/api/overcall/proxy.py"
+          change_type: "modified"
+          description: "Ingest-key identity wired to proxy and metadata log."
+        - file: "apps/api/tests/integration/test_proxy_persistence.py"
+          change_type: "modified"
+          description: "Proxy auth, key rotation, and logging fail-open coverage."
+        - file: "docs/PLAN.md"
+          change_type: "modified"
+          description: "B8 auth/logging checklist evidence."
+    verification:
+      build_passed: null
+      test_results:
+        command: "<repo>\\apps\\api\\.venv\\Scripts\\python.exe -m pytest -q -c <repo>\\apps\\api\\pyproject.toml <repo>\\apps\\api\\tests (run from temp with PYTHONPATH=<repo>\\apps\\api)"
+        passed: 77
+        failed: 0
+        skipped: 2
+        failures: []
+      notes: "No separate build command is configured; tests imported and exercised the backend. Local Uvicorn plus curl.exe returned 200 using a controlled fake session. Contract drift, scoped Ruff, Ruff format, and git diff --check passed. PostgreSQL integration checks were skipped."
+    upstream_trace:
+      plan_item: "B8 Done when — Auth fails closed. Logging fails open."
+      requirements: []
+      full_trace: "docs/PLAN.md#B8 → t2.1.4 → deps.py/proxy.py → proxy persistence integration tests"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-t2.1.4"
+    requirement: "B8 proxy authentication and logging"
+    plan_phase: "Remediation"
+    plan_item: "B8"
+    tasks:
+      - "t2.1.4"
+    files:
+      - "apps/api/overcall/deps.py"
+      - "apps/api/overcall/proxy.py"
+      - "apps/api/tests/integration/test_proxy_persistence.py"
+    status: "complete"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "PostgreSQL integration checks skipped: TEST_DATABASE_URL is not configured."
+    - "Verification uses a fake session; no live Postgres or production-key probe was performed."
+  blocking_issues: []

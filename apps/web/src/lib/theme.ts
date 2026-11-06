@@ -3,6 +3,32 @@ export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 export const THEME_STORAGE_KEY = "overcall-theme";
 export const THEME_CHANGE_EVENT = "overcall-theme-change";
+const THEME_TRANSITION_CLASS = "theme-transition-suppressed";
+
+let transitionFrame: number | undefined;
+let transitionReleaseFrame: number | undefined;
+
+function suppressThemeTransitions(root: HTMLElement, updateTheme: () => void): void {
+  root.classList.add(THEME_TRANSITION_CLASS);
+  updateTheme();
+  void root.offsetHeight;
+
+  if (typeof window.requestAnimationFrame !== "function") {
+    root.classList.remove(THEME_TRANSITION_CLASS);
+    return;
+  }
+
+  if (transitionFrame !== undefined) window.cancelAnimationFrame(transitionFrame);
+  if (transitionReleaseFrame !== undefined) window.cancelAnimationFrame(transitionReleaseFrame);
+
+  transitionFrame = window.requestAnimationFrame(() => {
+    transitionReleaseFrame = window.requestAnimationFrame(() => {
+      root.classList.remove(THEME_TRANSITION_CLASS);
+      transitionFrame = undefined;
+      transitionReleaseFrame = undefined;
+    });
+  });
+}
 
 export function getPreference(): ThemePreference {
   try {
@@ -22,9 +48,12 @@ export function resolveTheme(
 
 export function applyTheme(preference: ThemePreference): ResolvedTheme {
   const theme = resolveTheme(preference);
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  document.documentElement.style.colorScheme = theme;
+  const root = document.documentElement;
+  suppressThemeTransitions(root, () => {
+    root.dataset.theme = theme;
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+  });
   return theme;
 }
 

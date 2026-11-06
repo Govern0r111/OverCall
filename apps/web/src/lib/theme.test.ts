@@ -22,9 +22,19 @@ describe("theme preferences", () => {
     expect(getPreference()).toBe("system");
   });
 
-  it("persists and applies an explicit choice", () => {
+  it("persists and applies an explicit choice without leaving transition suppression active", async () => {
     setPreference("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
+
+    await new Promise<void>((resolve) => {
+      if (!window.requestAnimationFrame) {
+        resolve();
+        return;
+      }
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(document.documentElement).not.toHaveClass("theme-transition-suppressed");
   });
 });

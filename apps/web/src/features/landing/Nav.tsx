@@ -19,7 +19,7 @@ export function Nav() {
           <a className="site-nav__how" href="#how-it-works">How it works</a>
           <ThemeToggle />
           <Link className="site-nav__login" to="/login">Log in</Link>
-          <Link className="button button--primary site-nav__signup" to="/signup">Sign up</Link>
+          <Link className="button button--secondary site-nav__signup" to="/signup">Sign up</Link>
         </div>
       </nav>
     </header>

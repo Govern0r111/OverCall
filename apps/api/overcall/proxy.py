@@ -1,26 +1,35 @@
 import json
+import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import httpx
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import logs_col
-from .engine import mark_dirty
+from .config import Settings
+from .db.models import RequestLog
+from .db.repos import RequestLogRepository, UserSettingsRepository
+from .deps import IngestKeyContext, get_db_session, get_ingest_key
 from .hashing import context_hash, normalize_endpoint, payload_hash
+from .logging import get_logger
 from .mock_llm import mock_app
-from .models import RequestLog
-from .pricing_config import PRICING, estimate_cost
-from .settings_store import get_settings
+from .pricing import Usage
+from .pricing import estimate_cost as calculate_cost
 
-router = APIRouter(prefix="/api/proxy")
+logger = get_logger(__name__)
+router = APIRouter(prefix="/proxy", tags=["proxy"])
 http_client = httpx.AsyncClient(timeout=90)
-mock_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=mock_app), base_url="http://mock-llm", timeout=30)
+mock_client = httpx.AsyncClient(
+    transport=httpx.ASGITransport(app=mock_app), base_url="http://mock-llm", timeout=30
+)
 
 DROP_REQ = {"host", "content-length", "connection", "accept-encoding", "transfer-encoding"}
 DROP_RESP = {"content-encoding", "content-length", "transfer-encoding", "connection"}
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+_CALLER_PATTERN = re.compile(r"^[A-Za-z0-9._:/-]{1,64}$")
 
 
 def bearer_key(headers) -> str:
@@ -29,6 +38,7 @@ def bearer_key(headers) -> str:
         return auth[7:].strip()
     if auth.lower().startswith("basic "):
         import base64
+
         try:
             return base64.b64decode(auth[6:]).decode().split(":")[0]
         except ValueError:
@@ -36,14 +46,12 @@ def bearer_key(headers) -> str:
     return ""
 
 
-def resolve_upstream(provider: str, headers, openai_mode: str):
+def resolve_upstream(provider: str, headers, openai_mode: str, settings: Settings):
     if provider == "openai":
-        if openai_mode == "real":
-            return http_client, PRICING["openai"]["upstream"]["real"], "real"
+        if openai_mode == "real" and settings.allow_real_upstream:
+            return http_client, settings.openai_upstream_base_url, "real"
         return mock_client, "", "mock"
-    key = bearer_key(headers)
-    base = PRICING["stripe"]["upstream"]["emergent_test" if "sk_test_emergent" in key else "real"]
-    return http_client, base, "test"
+    return http_client, settings.stripe_upstream_base_url, "test"
 
 
 def safe_json(raw: bytes):
@@ -59,24 +67,69 @@ def extract_meta(provider: str, req_body: bytes, resp_body: bytes, query) -> dic
     resp = resp if isinstance(resp, dict) else {}
     if provider == "openai":
         usage = resp.get("usage") or {}
-        return {"model": resp.get("model") or req.get("model"), "prompt_tokens": int(usage.get("prompt_tokens") or 0),
-                "completion_tokens": int(usage.get("completion_tokens") or 0), "context_hash": context_hash(req.get("messages"))}
+        usage = usage if isinstance(usage, dict) else {}
+        token_details = usage.get("prompt_tokens_details") or {}
+        token_details = token_details if isinstance(token_details, dict) else {}
+        return {
+            "model": resp.get("model") or req.get("model"),
+            "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+            "completion_tokens": int(usage.get("completion_tokens") or 0),
+            "cached_prompt_tokens": int(token_details.get("cached_tokens") or 0),
+            "context_hash": context_hash(req.get("messages")),
+        }
     limit = query.get("limit")
-    return {"list_limit": int(limit) if limit and limit.isdigit() else None,
-            "items_returned": len(resp["data"]) if resp.get("object") == "list" and isinstance(resp.get("data"), list) else None}
+    return {
+        "list_limit": int(limit) if limit and limit.isdigit() else None,
+        "items_returned": len(resp["data"])
+        if resp.get("object") == "list" and isinstance(resp.get("data"), list)
+        else None,
+    }
 
 
-@router.api_route("/{provider}/{path:path}", methods=METHODS)
-async def proxy(provider: str, path: str, request: Request):
+async def persist_proxy_log(
+    session: AsyncSession,
+    user_id: UUID,
+    log: RequestLog,
+) -> None:
+    """Write metadata after the upstream response; persistence must never fail the request."""
+    try:
+        await RequestLogRepository(session, user_id).add(log)
+        await session.commit()
+    except Exception as exc:
+        try:
+            await session.rollback()
+        except Exception:
+            pass
+        logger.warning("proxy_log_write_failed error_type=%s", type(exc).__name__)
+
+
+@router.api_route("/{provider}/{path:path}", methods=METHODS, include_in_schema=False)
+async def proxy(
+    provider: str,
+    path: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    ingest_key: IngestKeyContext = Depends(get_ingest_key),  # noqa: B008
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+):
     if provider == "aws":
-        return JSONResponse({"error": "AWS proxying is stubbed in v1. Pricing schema is ready; forwarding is not."}, status_code=501)
+        return JSONResponse(
+            {"error": "AWS proxying is stubbed in v1. Pricing schema is ready; forwarding is not."},
+            status_code=501,
+        )
     if provider not in ("openai", "stripe"):
-        return JSONResponse({"error": f"Unknown provider '{provider}'. Use openai or stripe."}, status_code=404)
+        return JSONResponse(
+            {"error": f"Unknown provider '{provider}'. Use openai or stripe."}, status_code=404
+        )
     if provider == "stripe" and bearer_key(request.headers).startswith(("sk_live", "rk_live")):
-        return JSONResponse({"error": "v1 proxies Stripe test mode only. Use an sk_test_ key."}, status_code=403)
+        return JSONResponse(
+            {"error": "v1 proxies Stripe test mode only. Use an sk_test_ key."}, status_code=403
+        )
 
-    settings = await get_settings()
-    client, base, _mode = resolve_upstream(provider, request.headers, settings.openai_upstream)
+    user_settings = await UserSettingsRepository(session, ingest_key.user_id).get()
+    openai_mode = user_settings.upstream_mode if user_settings is not None else "mock"
+    app_settings = request.app.state.settings
+    client, base, _mode = resolve_upstream(provider, request.headers, openai_mode, app_settings)
     body = await request.body()
     headers = {
         k: v
@@ -85,29 +138,96 @@ async def proxy(provider: str, path: str, request: Request):
         and k.lower() not in {"x-overcall-key", "x-overcall-caller"}
         and not k.lower().startswith("x-forwarded-")
     }
+    if _mode == "mock":
+        headers.pop("authorization", None)
     upstream_path = "/" + path
+    occurred_at = datetime.now(UTC)
+    log_id = uuid4()
     started = time.perf_counter()
+    error_code = None
     try:
-        resp = await client.request(request.method, f"{base}{upstream_path}", params=list(request.query_params.multi_items()),
-                                    content=body, headers=headers)
+        resp = await client.request(
+            request.method,
+            f"{base}{upstream_path}",
+            params=list(request.query_params.multi_items()),
+            content=body,
+            headers=headers,
+        )
         status, content, resp_headers = resp.status_code, resp.content, resp.headers
     except httpx.RequestError as exc:
-        status, content, resp_headers = 502, json.dumps({"error": f"Upstream unreachable: {type(exc).__name__}"}).encode(), {"content-type": "application/json"}
+        status, content, resp_headers = (
+            502,
+            json.dumps({"error": f"Upstream unreachable: {type(exc).__name__}"}).encode(),
+            {"content-type": "application/json"},
+        )
+        error_code = "upstream_unreachable"
     latency = (time.perf_counter() - started) * 1000
 
-    meta = extract_meta(provider, body, content, request.query_params)
-    log = RequestLog(
-        timestamp=datetime.now(timezone.utc), provider=provider, endpoint=normalize_endpoint(upstream_path),
-        method=request.method, req_size=len(body),
-        req_hash=payload_hash(request.method, upstream_path, request.url.query, body, request.headers.get("content-type", "")),
-        status=status, resp_size=len(content), latency_ms=round(latency, 1),
-        cost_usd=estimate_cost(provider, meta.get("model"), meta.get("prompt_tokens", 0), meta.get("completion_tokens", 0), status),
-        source="proxy", caller=request.headers.get("x-overcall-caller"),
-        has_idempotency_key="idempotency-key" in request.headers, **meta,
-    )
-    await logs_col.insert_one(log.to_record())
-    mark_dirty()
+    try:
+        meta = extract_meta(provider, body, content, request.query_params)
+        response_json = safe_json(content)
+        response_usage = (
+            response_json.get("usage")
+            if isinstance(response_json, dict) and isinstance(response_json.get("usage"), dict)
+            else None
+        )
+        cost = calculate_cost(
+            provider,
+            meta.get("model"),
+            (
+                Usage(
+                    prompt_tokens=meta.get("prompt_tokens", 0),
+                    completion_tokens=meta.get("completion_tokens", 0),
+                    cached_prompt_tokens=meta.get("cached_prompt_tokens", 0),
+                )
+                if response_usage is not None
+                else None
+            ),
+            status,
+            at=occurred_at,
+        )
+        log = RequestLog(
+            id=log_id,
+            user_id=ingest_key.user_id,
+            ingest_key_id=ingest_key.ingest_key_id,
+            source="proxy",
+            origin="upstream",
+            occurred_at=occurred_at,
+            provider=provider,
+            endpoint=normalize_endpoint(upstream_path),
+            method=request.method,
+            req_size=len(body),
+            req_hash=payload_hash(
+                request.method,
+                upstream_path,
+                request.url.query,
+                body,
+                request.headers.get("content-type", ""),
+            ),
+            status=status,
+            resp_size=len(content),
+            latency_ms=round(latency, 1),
+            cost_usd=cost.cost_usd,
+            cost_basis=cost.basis,
+            pricing_version=cost.pricing_version,
+            caller=(
+                request.headers.get("x-overcall-caller")
+                if _CALLER_PATTERN.fullmatch(request.headers.get("x-overcall-caller", ""))
+                else None
+            ),
+            has_idempotency_key="idempotency-key" in request.headers,
+            error_code=error_code,
+            **meta,
+        )
+        background_tasks.add_task(persist_proxy_log, session, ingest_key.user_id, log)
+    except Exception as exc:
+        logger.warning("proxy_log_prepare_failed error_type=%s", type(exc).__name__)
 
     out_headers = {k: v for k, v in resp_headers.items() if k.lower() not in DROP_RESP}
-    out_headers["x-overcall-request-id"] = log.id
-    return Response(content=content, status_code=status, headers=out_headers)
+    out_headers["x-overcall-request-id"] = str(log_id)
+    return Response(
+        content=content,
+        status_code=status,
+        headers=out_headers,
+        background=background_tasks,
+    )

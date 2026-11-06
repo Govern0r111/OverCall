@@ -1,0 +1,190 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Overcall API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/me": {
+      "get": {
+        "operationId": "get_me",
+        "x-response-model": "MeResponse",
+        "x-response-properties": ["id", "email", "created_at", "proxy_status", "last_request_at", "issue_count", "is_demo_data", "has_data", "real_upstream_available"],
+        "x-response-required": ["id", "email", "created_at", "proxy_status", "last_request_at", "issue_count", "is_demo_data", "has_data", "real_upstream_available"],
+        "x-response-types": {"id": "string:uuid", "email": "nullable:string", "created_at": "string:date-time", "proxy_status": "string", "last_request_at": "nullable:string:date-time", "issue_count": "integer", "is_demo_data": "boolean", "has_data": "boolean", "real_upstream_available": "boolean"},
+        "responses": {"200": {"description": "Account summary"}}
+      }
+    },
+    "/v1/overview": {
+      "get": {
+        "operationId": "get_overview",
+        "x-response-model": "OverviewResponse",
+        "x-response-properties": ["has_data", "is_demo_data", "generated_at", "run_id", "window", "request_count", "flagged_request_count", "total_spend_usd", "spend_savings", "experimental_spend_savings", "reliability_findings", "severity_breakdown", "by_provider", "trend", "top_issues"],
+        "x-response-required": ["has_data", "is_demo_data", "generated_at", "run_id", "window", "request_count", "flagged_request_count", "total_spend_usd", "spend_savings", "experimental_spend_savings", "reliability_findings", "severity_breakdown", "by_provider", "trend", "top_issues"],
+        "x-response-types": {"has_data": "boolean", "is_demo_data": "boolean", "generated_at": "nullable:string:date-time", "run_id": "nullable:string:uuid", "window": "ref:OverviewWindow", "request_count": "integer", "flagged_request_count": "integer", "total_spend_usd": "string", "spend_savings": "ref:SpendSavings", "experimental_spend_savings": "ref:ExperimentalSavings", "reliability_findings": "ref:ReliabilityFindings", "severity_breakdown": "ref:SeverityBreakdown", "by_provider": "array:ref:ProviderSpend", "trend": "array:ref:TrendEntry", "top_issues": "array:ref:IssueResponse"},
+        "responses": {"200": {"description": "Overview summary"}}
+      }
+    },
+    "/v1/issues": {
+      "get": {
+        "operationId": "list_issues",
+        "x-response-model": "IssueList",
+        "x-response-properties": ["items", "next_cursor"],
+        "x-response-required": ["items", "next_cursor"],
+        "x-response-types": {"items": "array:ref:IssueResponse", "next_cursor": "nullable:string"},
+        "responses": {"200": {"description": "Issue page"}}
+      }
+    },
+    "/v1/issues/{issue_id}": {
+      "get": {
+        "operationId": "get_issue",
+        "x-response-model": "IssueResponse",
+        "x-response-properties": ["id", "rule_id", "rule_name", "tier", "experimental", "provider", "endpoint", "severity", "impact_kind", "title", "summary", "explanation", "suggested_fix", "affected_count", "window_savings_usd", "projected_monthly_usd", "confidence", "is_demo_data", "detected_at", "sample_requests"],
+        "x-response-required": ["id", "rule_id", "rule_name", "tier", "experimental", "provider", "endpoint", "severity", "impact_kind", "title", "summary", "explanation", "suggested_fix", "affected_count", "window_savings_usd", "projected_monthly_usd", "confidence", "is_demo_data", "detected_at"],
+        "x-response-types": {"id": "string:uuid", "rule_id": "string", "rule_name": "string", "tier": "integer", "experimental": "boolean", "provider": "string", "endpoint": "string", "severity": "string", "impact_kind": "string", "title": "string", "summary": "string", "explanation": "string", "suggested_fix": "string", "affected_count": "integer", "window_savings_usd": "string", "projected_monthly_usd": "string", "confidence": "nullable:number", "is_demo_data": "boolean", "detected_at": "string:date-time", "sample_requests": "array:ref:SampleRequest"},
+        "responses": {"200": {"description": "Issue"}}
+      }
+    },
+    "/v1/logs": {
+      "get": {
+        "operationId": "list_logs",
+        "x-response-model": "LogList",
+        "x-response-properties": ["items", "next_cursor"],
+        "x-response-required": ["items", "next_cursor"],
+        "x-response-types": {"items": "array:ref:LogEntry", "next_cursor": "nullable:string"},
+        "responses": {"200": {"description": "Log page"}}
+      }
+    },
+    "/v1/logs/facets": {
+      "get": {
+        "operationId": "log_facets",
+        "x-response-model": "LogFacets",
+        "x-response-properties": ["providers", "endpoints", "callers", "models"],
+        "x-response-required": ["providers", "endpoints", "callers", "models"],
+        "x-response-types": {"providers": "array:string", "endpoints": "array:ref:FacetValue", "callers": "array:string", "models": "array:string"},
+        "responses": {"200": {"description": "Log filter facets"}}
+      }
+    },
+    "/v1/logs/{log_id}": {
+      "get": {
+        "operationId": "get_log",
+        "x-response-model": "LogEntry",
+        "x-response-properties": ["id", "occurred_at", "provider", "method", "endpoint", "status", "latency_ms", "ttfb_ms", "req_size", "resp_size", "req_hash", "model", "prompt_tokens", "completion_tokens", "tokens_estimated", "stream", "cost_usd", "cost_basis", "pricing_version", "caller", "has_idempotency_key", "error_code", "origin", "is_demo", "flagged_by"],
+        "x-response-required": ["id", "occurred_at", "provider", "method", "endpoint", "status", "latency_ms", "ttfb_ms", "req_size", "resp_size", "req_hash", "model", "prompt_tokens", "completion_tokens", "tokens_estimated", "stream", "cost_usd", "cost_basis", "pricing_version", "caller", "has_idempotency_key", "error_code", "origin", "is_demo"],
+        "x-response-types": {"id": "string:uuid", "occurred_at": "string:date-time", "provider": "string", "method": "string", "endpoint": "string", "status": "integer", "latency_ms": "number", "ttfb_ms": "nullable:number", "req_size": "integer", "resp_size": "integer", "req_hash": "string", "model": "nullable:string", "prompt_tokens": "integer", "completion_tokens": "integer", "tokens_estimated": "boolean", "stream": "boolean", "cost_usd": "string", "cost_basis": "string", "pricing_version": "nullable:string", "caller": "nullable:string", "has_idempotency_key": "boolean", "error_code": "nullable:string", "origin": "string", "is_demo": "boolean", "flagged_by": "array:ref:FlaggedBy"},
+        "responses": {"200": {"description": "Log entry"}}
+      }
+    },
+    "/v1/providers": {
+      "get": {
+        "operationId": "providers",
+        "x-response-model": "ProviderResponse",
+        "x-response-container": "array",
+        "x-response-properties": ["id", "name", "status", "proxy_base_url", "snippets", "traffic", "upstream_mode", "pricing", "notes"],
+        "x-response-required": ["id", "name", "status", "proxy_base_url", "snippets", "traffic", "upstream_mode", "pricing", "notes"],
+        "x-response-types": {"id": "string", "name": "string", "status": "string", "proxy_base_url": "string", "snippets": "array:ref:ProviderSnippet", "traffic": "ref:ProviderTraffic", "upstream_mode": "nullable:string", "pricing": "nullable:ref:ProviderPricing", "notes": "nullable:string"},
+        "responses": {"200": {"description": "Provider catalog"}}
+      }
+    },
+    "/v1/settings": {
+      "get": {
+        "operationId": "get_settings",
+        "x-response-model": "SettingsResponse",
+        "x-response-properties": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "confirm_real_upstream", "retention_days", "updated_at"],
+        "x-response-required": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "retention_days", "updated_at"],
+        "x-response-types": {"currency": "string", "usd_inr_rate": "number", "rules_enabled": "object", "tier3_enabled": "boolean", "thresholds": "ref:Thresholds", "upstream_mode": "string", "confirm_real_upstream": "boolean", "retention_days": "integer", "updated_at": "string:date-time"},
+        "responses": {"200": {"description": "Current settings"}}
+      },
+      "put": {
+        "operationId": "update_settings",
+        "x-response-model": "SettingsResponse",
+        "x-response-properties": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "confirm_real_upstream", "retention_days", "updated_at"],
+        "x-response-required": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "retention_days", "updated_at"],
+        "x-response-types": {"currency": "string", "usd_inr_rate": "number", "rules_enabled": "object", "tier3_enabled": "boolean", "thresholds": "ref:Thresholds", "upstream_mode": "string", "confirm_real_upstream": "boolean", "retention_days": "integer", "updated_at": "string:date-time"},
+        "responses": {"200": {"description": "Updated settings"}}
+      }
+    },
+    "/v1/settings/reset": {
+      "post": {
+        "operationId": "reset_settings",
+        "x-response-model": "SettingsResponse",
+        "x-response-properties": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "confirm_real_upstream", "retention_days", "updated_at"],
+        "x-response-required": ["currency", "usd_inr_rate", "rules_enabled", "tier3_enabled", "thresholds", "upstream_mode", "retention_days", "updated_at"],
+        "x-response-types": {"currency": "string", "usd_inr_rate": "number", "rules_enabled": "object", "tier3_enabled": "boolean", "thresholds": "ref:Thresholds", "upstream_mode": "string", "confirm_real_upstream": "boolean", "retention_days": "integer", "updated_at": "string:date-time"},
+        "responses": {"200": {"description": "Reset settings"}}
+      }
+    },
+    "/v1/rules": {
+      "get": {
+        "operationId": "get_rules",
+        "x-response-model": "RuleResponse",
+        "x-response-container": "array",
+        "x-response-properties": ["id", "name", "tier", "description", "experimental"],
+        "x-response-required": ["id", "name", "tier", "description", "experimental"],
+        "x-response-types": {"id": "string", "name": "string", "tier": "integer", "description": "string", "experimental": "boolean"},
+        "responses": {"200": {"description": "Rule catalog"}}
+      }
+    },
+    "/v1/detection/run": {
+      "post": {
+        "operationId": "run_detection",
+        "x-response-model": "DetectionRunResponse",
+        "x-response-properties": ["run_id", "status"],
+        "x-response-required": ["run_id", "status"],
+        "x-response-types": {"run_id": "string:uuid", "status": "string"},
+        "responses": {
+          "200": {"description": "Completed detection run"},
+          "202": {"description": "Detection run queued"}
+        }
+      }
+    },
+    "/v1/detection/runs/latest": {
+      "get": {
+        "operationId": "latest_detection_run",
+        "x-response-model": "DetectionRunSummary",
+        "x-response-properties": ["id", "status", "started_at", "finished_at", "is_demo_data", "request_count", "flagged_request_count", "total_spend_usd", "spend_savings_window_usd", "spend_savings_monthly_usd", "experimental_monthly_usd", "reliability_count", "reliability_overhead_monthly_usd"],
+        "x-response-required": ["id", "status", "started_at", "finished_at", "is_demo_data", "request_count", "flagged_request_count", "total_spend_usd", "spend_savings_window_usd", "spend_savings_monthly_usd", "experimental_monthly_usd", "reliability_count", "reliability_overhead_monthly_usd"],
+        "x-response-types": {"id": "string:uuid", "status": "string", "started_at": "string:date-time", "finished_at": "nullable:string:date-time", "is_demo_data": "boolean", "request_count": "integer", "flagged_request_count": "integer", "total_spend_usd": "string", "spend_savings_window_usd": "string", "spend_savings_monthly_usd": "string", "experimental_monthly_usd": "string", "reliability_count": "integer", "reliability_overhead_monthly_usd": "string"},
+        "responses": {"200": {"description": "Latest detection run"}}
+      }
+    },
+    "/v1/accuracy": {
+      "get": {
+        "operationId": "accuracy",
+        "x-response-model": "AccuracyResponse",
+        "x-response-properties": ["datasets"],
+        "x-response-required": ["datasets"],
+        "x-response-types": {"datasets": "array:ref:AccuracyDataset"},
+        "responses": {"200": {"description": "Accuracy report"}}
+      }
+    },
+    "/v1/demo/load": {
+      "post": {
+        "operationId": "load_demo",
+        "x-response-model": "DemoLoadResponse",
+        "x-response-properties": ["inserted"],
+        "x-response-required": ["inserted"],
+        "x-response-types": {"inserted": "integer"},
+        "responses": {"200": {"description": "Demo rows loaded"}}
+      }
+    },
+    "/v1/demo": {
+      "delete": {
+        "operationId": "delete_demo",
+        "responses": {"204": {"description": "Demo data deleted"}}
+      }
+    },
+    "/v1/data": {
+      "delete": {
+        "operationId": "delete_data",
+        "responses": {"204": {"description": "User data deleted"}}
+      }
+    }
+  },
+  "security": [{"bearerAuth": []}],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {"type": "http", "scheme": "bearer"}
+    }
+  }
+}

@@ -17,7 +17,9 @@ export function DashboardPreview() {
           <div className="preview-card__header">
             <div>
               <p className="preview-card__title">Overview</p>
-              <p className="preview-card__caption">Last 7 days · 12,480 requests analysed</p>
+              <p className="preview-card__caption">
+                Last <span className="mono">7 days</span> · <span className="mono">12,480 requests</span> analysed
+              </p>
             </div>
             <span className="demo-label"><span aria-hidden="true" /> Demo data</span>
           </div>

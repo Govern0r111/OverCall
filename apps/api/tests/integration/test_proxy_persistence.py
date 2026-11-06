@@ -1,0 +1,327 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import secrets
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from uuid import uuid4
+
+import httpx
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+
+from overcall import proxy
+from overcall.config import Settings
+from overcall.db.models import IngestKey, RequestLog
+from overcall.deps import get_db_session
+from overcall.main import create_app
+
+USER_ID = uuid4()
+REQUEST_SENTINEL = "request-body-sentinel-must-not-be-stored"
+INGEST_KEY_PEPPER = "test-ingest-key-pepper-" + ("x" * 24)
+PREVIOUS_INGEST_KEY_PEPPER = "previous-ingest-key-pepper-" + ("y" * 19)
+
+
+class FakeResult:
+    def __init__(self, item: object | None) -> None:
+        self.item = item
+
+    def scalar_one_or_none(self) -> object | None:
+        return self.item
+
+
+class FakeSession:
+    def __init__(
+        self,
+        *,
+        fail_flush: bool = False,
+        ingest_keys: list[IngestKey] | None = None,
+    ) -> None:
+        self.added: list[object] = []
+        self.commit_count = 0
+        self.rollback_count = 0
+        self.fail_flush = fail_flush
+        self.flush_count = 0
+        self.ingest_keys = ingest_keys or []
+
+    def add(self, item: object) -> None:
+        self.added.append(item)
+
+    async def execute(self, statement) -> FakeResult:
+        values = set(statement.compile().params.values())
+        match = next((key for key in self.ingest_keys if key.key_hash in values), None)
+        return FakeResult(match)
+
+    async def flush(self) -> None:
+        self.flush_count += 1
+        if self.fail_flush and self.flush_count > 1:
+            raise RuntimeError("simulated database failure")
+
+    async def commit(self) -> None:
+        self.commit_count += 1
+
+    async def rollback(self) -> None:
+        self.rollback_count += 1
+
+
+class FakeRequestLogRepositorySettings:
+    def __init__(self, _session, _user_id) -> None:
+        pass
+
+    async def get(self):
+        return SimpleNamespace(upstream_mode="mock")
+
+
+class FakeUpstreamClient:
+    def __init__(self, response: httpx.Response) -> None:
+        self.response = response
+        self.request_args: tuple | None = None
+
+    async def request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        self.request_args = (method, url, kwargs)
+        return self.response
+
+
+def _client(session: FakeSession, settings: Settings | None = None) -> TestClient:
+    app = create_app(
+        settings
+        or Settings(
+            app_env="test",
+            database_url=None,
+            release="test",
+            ingest_key_pepper=SecretStr(INGEST_KEY_PEPPER),
+        )
+    )
+
+    async def db_session():
+        yield session
+
+    app.dependency_overrides[get_db_session] = db_session
+    return TestClient(app)
+
+
+def _seed_key(
+    session: FakeSession,
+    *,
+    pepper: str = INGEST_KEY_PEPPER,
+    revoked_at: datetime | None = None,
+) -> tuple[str, IngestKey]:
+    plaintext = "oc_" + secrets.token_urlsafe(32)
+    key_hash = hmac.new(pepper.encode(), plaintext.encode(), hashlib.sha256).hexdigest()
+    row = IngestKey(
+        id=uuid4(),
+        user_id=USER_ID,
+        name="integration test",
+        prefix=plaintext[:9],
+        key_hash=key_hash,
+        revoked_at=revoked_at,
+    )
+    session.ingest_keys.append(row)
+    return plaintext, row
+
+
+def test_proxy_returns_upstream_bytes_and_persists_metadata_only(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, ingest_key_row = _seed_key(session)
+    request_body = (
+        '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"' + REQUEST_SENTINEL + '"}]}'
+    ).encode()
+    upstream_body = (
+        b'{"model":"gpt-4o-mini","usage":{"prompt_tokens":12,"completion_tokens":4},"choices":[]}'
+    )
+    upstream = FakeUpstreamClient(
+        httpx.Response(207, content=upstream_body, headers={"x-upstream-id": "up_123"})
+    )
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    with _client(session) as client:
+        response = client.post(
+            "/proxy/openai/v1/chat/completions",
+            content=request_body,
+            headers={
+                "authorization": "Bearer provider-secret",
+                "content-type": "application/json",
+                "x-overcall-caller": "checkout",
+                "x-overcall-key": ingest_key,
+                "x-forwarded-for": "192.0.2.1",
+            },
+        )
+
+    assert response.status_code == 207
+    assert response.content == upstream_body
+    assert response.headers["x-upstream-id"] == "up_123"
+    assert response.headers["x-overcall-request-id"]
+    assert upstream.request_args is not None
+    method, url, forwarded = upstream.request_args
+    assert (method, url) == ("POST", "/v1/chat/completions")
+    assert forwarded["content"] == request_body
+    assert "authorization" not in forwarded["headers"]
+    assert "x-overcall-key" not in forwarded["headers"]
+    assert "x-forwarded-for" not in forwarded["headers"]
+
+    assert len(session.added) == 1
+    row = session.added[0]
+    assert isinstance(row, RequestLog)
+    assert row.user_id == USER_ID
+    assert row.ingest_key_id == ingest_key_row.id
+    assert row.source == "proxy"
+    assert row.origin == "upstream"
+    assert row.endpoint == "/v1/chat/completions"
+    assert row.status == 207
+    assert row.req_size == len(request_body)
+    assert row.resp_size == len(upstream_body)
+    assert row.prompt_tokens == 12
+    assert row.completion_tokens == 4
+    assert row.cost_basis == "billed"
+    assert row.cost_usd >= 0
+    assert row.pricing_version
+    assert session.commit_count == 1
+    assert REQUEST_SENTINEL not in repr(row.model_dump())
+    assert "provider-secret" not in repr(row.model_dump())
+    assert ingest_key not in repr(row.model_dump())
+    assert ingest_key_row.last_used_at is not None
+
+
+def test_proxy_reaches_mock_upstream_in_process(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    with _client(session) as client:
+        response = client.post(
+            "/proxy/openai/v1/chat/completions",
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "local mock request"}],
+            },
+            headers={"content-type": "application/json", "x-overcall-key": ingest_key},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["object"] == "chat.completion"
+    assert response.json()["choices"][0]["message"]["content"]
+    assert len(session.added) == 1
+    assert session.added[0].source == "proxy"
+
+
+def test_proxy_logging_failure_does_not_change_upstream_response(monkeypatch) -> None:
+    session = FakeSession(fail_flush=True)
+    ingest_key, _ = _seed_key(session)
+    upstream_body = b'{"error":"upstream response"}'
+    upstream = FakeUpstreamClient(httpx.Response(503, content=upstream_body))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    with _client(session) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 503
+    assert response.content == upstream_body
+    assert session.rollback_count == 1
+    assert session.commit_count == 0
+
+
+def test_malformed_upstream_metadata_does_not_change_upstream_response(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session)
+    upstream_body = b'{"usage":"unexpected"}'
+    upstream = FakeUpstreamClient(httpx.Response(200, content=upstream_body))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+
+    with _client(session) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 200
+    assert response.content == upstream_body
+
+
+def test_proxy_rejects_missing_ingest_key() -> None:
+    app = create_app(
+        Settings(
+            app_env="test",
+            database_url=None,
+            release="test",
+            ingest_key_pepper=SecretStr(INGEST_KEY_PEPPER),
+        )
+    )
+    with TestClient(app) as client:
+        response = client.get("/proxy/openai/v1/models")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ingest_key_missing"
+
+
+def test_proxy_rejects_unknown_ingest_key_before_forwarding(monkeypatch) -> None:
+    session = FakeSession()
+    upstream = FakeUpstreamClient(httpx.Response(200, content=b"should not be called"))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+
+    with _client(session) as client:
+        response = client.get(
+            "/proxy/openai/v1/models",
+            headers={"x-overcall-key": "oc_" + ("a" * 43)},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ingest_key_invalid"
+    assert upstream.request_args is None
+    assert session.added == []
+
+
+def test_proxy_rejects_ingest_key_when_pepper_is_unconfigured(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session)
+    upstream = FakeUpstreamClient(httpx.Response(200, content=b"should not be called"))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+    settings = Settings(app_env="test", database_url=None, release="test")
+
+    with _client(session, settings) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ingest_key_invalid"
+    assert upstream.request_args is None
+    assert session.flush_count == 0
+
+
+def test_proxy_rejects_revoked_ingest_key_before_forwarding(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, _ = _seed_key(session, revoked_at=datetime.now(UTC))
+    upstream = FakeUpstreamClient(httpx.Response(200, content=b"should not be called"))
+    monkeypatch.setattr(proxy, "mock_client", upstream)
+
+    with _client(session) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ingest_key_revoked"
+    assert upstream.request_args is None
+    assert session.added == []
+
+
+def test_proxy_rehashes_previous_pepper_key_on_success(monkeypatch) -> None:
+    session = FakeSession()
+    ingest_key, row = _seed_key(session, pepper=PREVIOUS_INGEST_KEY_PEPPER)
+    previous_hash = row.key_hash
+    monkeypatch.setattr(proxy, "UserSettingsRepository", FakeRequestLogRepositorySettings)
+    settings = Settings(
+        app_env="test",
+        database_url=None,
+        release="test",
+        ingest_key_pepper=SecretStr(INGEST_KEY_PEPPER),
+        ingest_key_pepper_prev=SecretStr(PREVIOUS_INGEST_KEY_PEPPER),
+    )
+
+    with _client(session, settings) as client:
+        response = client.get("/proxy/openai/v1/models", headers={"x-overcall-key": ingest_key})
+
+    assert response.status_code == 200
+    assert row.key_hash != previous_hash
+    assert (
+        row.key_hash
+        == hmac.new(INGEST_KEY_PEPPER.encode(), ingest_key.encode(), hashlib.sha256).hexdigest()
+    )
+    assert row.pepper_version == 1
+    assert row.last_used_at is not None

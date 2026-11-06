@@ -1,0 +1,14 @@
+{
+  "short_window_s": {"default": 10, "min": 1, "max": 300},
+  "long_window_s": {"default": 600, "min": 60, "max": 3600},
+  "retry_min_backoff_ms": {"default": 1000, "min": 100, "max": 10000},
+  "retry_min_attempts": {"default": 3, "min": 2, "max": 10},
+  "oversized_bytes": {"default": 200000, "min": 10000, "max": 5000000},
+  "unbatched_min_calls": {"default": 5, "min": 2, "max": 100},
+  "unbatched_window_s": {"default": 5, "min": 1, "max": 60},
+  "token_bloat_min_repeats": {"default": 3, "min": 2, "max": 50},
+  "token_bloat_min_context_tokens": {"default": 1024, "min": 256, "max": 32000},
+  "model_overuse_max_prompt_tokens": {"default": 800, "min": 50, "max": 8000},
+  "model_overuse_max_completion_tokens": {"default": 300, "min": 10, "max": 4000},
+  "model_overuse_min_calls": {"default": 10, "min": 3, "max": 1000}
+}

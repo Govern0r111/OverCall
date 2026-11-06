@@ -8,7 +8,7 @@ const PALETTE = {
   accent: "var(--accent)",
   savings: "var(--positive)",
   grid: "var(--border)",
-  muted: "var(--muted)",
+  muted: "var(--text-muted)",
 };
 
 const ChartTooltip = ({ active, payload, label }: any) => {

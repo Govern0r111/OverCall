@@ -1,0 +1,5 @@
+## 2026-11-06T12:50:12Z — Coordinator (t2 escalation)
+The architect reported a CRITICAL backend runtime/API boundary: only health/readiness routes are registered, legacy `/api` routers are unmounted, and their imports reference collection symbols absent from the current SQLModel database package. It also reported related API/contract and deployment configuration gaps. Investigate and resolve the disconnected API runtime/route/import blockers that affect checklist API verification; preserve existing worktree changes and verify the affected routes. Do not treat external credentials, production access, timed-search, or soak checks as verified.
+
+## 2026-11-06T13:40:48Z — Coordinator (t2.1.3 escalation)
+The proxy persistence task reports one HIGH finding: unauthenticated `/proxy` correctly returns 401, but valid `X-Overcall-Key` verification is not wired, so the valid-key production flow is unverified. Implement and test the repo-supported proxy-key verification before marking B8 or the runtime/API remediation complete. Do not claim production credential checks.

@@ -688,7 +688,7 @@ Selected by `<html data-theme="light|dark">`. A tiny inline script in `index.htm
 **Edge cases:** `localStorage` blocked (private mode) so the toggle works for the session only. System theme changes while on `system`. 320 px wide and 200 % zoom. JavaScript disabled shows the readable content. Font loading uses `font-display: swap` with preloaded woff2. Dark-mode contrast of muted text (check ≥ 4.5:1). Very long words in the preview do not overflow. The OG image URL is absolute.
 
 **Done when**
-- [ ] Both themes look right at 320, 768 and 1280 px.
+- [x] Both themes look right at 320, 768 and 1280 px.
 - [x] The page makes **no backend calls** (Playwright assertion).
 - [x] Buttons route to `/signup` and `/app`.
 - [x] Lighthouse accessibility ≥ 90.
@@ -696,7 +696,7 @@ Selected by `<html data-theme="light|dark">`. A tiny inline script in `index.htm
 - [x] Tokens file is the only place hex colours appear.
 - [x] `npm run build` passes and the old CRA files are gone.
 
-> The responsive checks confirm no horizontal overflow at the three widths in both themes. The visual screenshots still need a human review before claiming the first item.
+> Responsive checks confirmed no horizontal overflow at all three widths in both themes. Browser visual review covered all six viewport/theme combinations; at 320 px the navigation stacks to keep every control readable.
 
 ### F2 — Auth pages (UI) · size M
 
@@ -1153,9 +1153,11 @@ class Rule(Protocol):
 **Edge cases:** cursor tampering. `limit` bounds. `from > to`. Very long `q`. Concurrent demo loads. Deleting data while a detection run is in progress (advisory lock). A user with no settings row (created on first read).
 
 **Done when**
-- [ ] The backend drift check against `contract/openapi.yaml` passes.
+- [x] The backend drift check against `contract/openapi.yaml` passes.
 - [ ] Isolation and gating tests pass.
 - [ ] Every response shape equals the corresponding fixture shape.
+
+Verification note (2026-11-06): The generated OpenAPI drift check now compares versioned paths, methods, successful statuses, response model/property names, required fields, and property types; it passes for all 17 versioned paths. The current contract suite verifies Tier 3 gating and exact fixtures for overview-empty and default settings only. Comprehensive two-user isolation across id-taking routes and fixture equality for every response remain unverified.
 
 ### B7 — Mock OpenAI upstream · size S
 
@@ -1212,10 +1214,10 @@ class Rule(Protocol):
 **Edge cases:** HEAD and OPTIONS. GET with a body. Chunked request bodies. `Expect: 100-continue`. Compressed request bodies (hash the raw bytes). Multipart uploads (hash raw bytes, never canonicalised). Repeated query keys. Percent-encoded path characters. Trailing and double slashes. Client disconnects mid-upload. `Content-Length` mismatch. An `X-Overcall-Caller` with odd characters (sanitised or dropped). Upstream 3xx.
 
 **Done when**
-- [ ] A request through the proxy returns exactly what the upstream returned.
+- [x] A request through the proxy returns exactly what the upstream returned. Verified for status, body, and a forwarded response header by `apps/api/tests/integration/test_proxy_persistence.py`.
 - [ ] A metadata-only row appears within about two seconds, written off the request path.
 - [ ] Redaction and no-body sentinel tests pass.
-- [ ] Auth fails closed. Logging fails open.
+- [x] Auth fails closed. Logging fails open. Verified by `apps/api/tests/integration/test_proxy_persistence.py`: missing, unknown, and revoked keys are rejected; a valid stored key reaches the mock upstream; simulated log persistence failure preserves the upstream response.
 
 ### B9 — SSE streaming pass-through · size M
 

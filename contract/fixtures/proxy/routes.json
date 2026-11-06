@@ -1,0 +1,14 @@
+{
+  "openai": [
+    {
+      "method": "POST",
+      "path": "/chat/completions"
+    }
+  ],
+  "stripe": [
+    {
+      "method": "GET",
+      "path": "/customers"
+    }
+  ]
+}

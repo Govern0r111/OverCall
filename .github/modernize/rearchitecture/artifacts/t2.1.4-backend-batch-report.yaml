@@ -1,0 +1,69 @@
+batch_id: "t2.1.4"
+completed_tasks:
+  - "t2.1.4"
+blocked_tasks: []
+files_changed:
+  t2.1.4:
+    - file: "apps/api/overcall/auth/__init__.py"
+      change_type: "created"
+      description: "Added authentication helper package."
+    - file: "apps/api/overcall/auth/ingest_keys.py"
+      change_type: "created"
+      description: "Added HMAC-SHA256 digest helper for ingest keys."
+    - file: "apps/api/overcall/db/repos/ingest_keys.py"
+      change_type: "created"
+      description: "Added SQLModel ingest-key lookup by stored digest."
+    - file: "apps/api/overcall/db/repos/__init__.py"
+      change_type: "modified"
+      description: "Exported the ingest-key repository."
+    - file: "apps/api/overcall/deps.py"
+      change_type: "modified"
+      description: "Added fail-closed X-Overcall-Key validation and lookup dependency."
+    - file: "apps/api/overcall/proxy.py"
+      change_type: "modified"
+      description: "Replaced user-JWT proxy dependency with ingest-key identity and recorded key ID."
+    - file: "apps/api/tests/integration/test_proxy_persistence.py"
+      change_type: "modified"
+      description: "Covered valid, missing, unknown, revoked, previous-pepper, and logging-failure flows."
+    - file: "docs/PLAN.md"
+      change_type: "modified"
+      description: "Checked B8 auth/logging item with test evidence."
+traceability:
+  - requirement: "B8 proxy authentication and logging"
+    plan_item: "docs/PLAN.md#B8 Done when"
+    task: "t2.1.4"
+    files:
+      - "apps/api/overcall/deps.py"
+      - "apps/api/overcall/proxy.py"
+      - "apps/api/tests/integration/test_proxy_persistence.py"
+    status: "completed"
+upstream_artifacts_consumed:
+  t2.1.4:
+    - artifact: ".github/modernize/rearchitecture/artifacts/t1-pm.md"
+      used_for: "B8 checklist and external/manual verification limits."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1.2-backend.md"
+      used_for: "Repository-backed SQLModel boundary and auth seam."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t2.1.3-backend.md"
+      used_for: "Proxy persistence contract and valid-key verification finding."
+evidence_mapping:
+  t2.1.4:
+    - upstream: "t1-pm.md#Unchecked items, in plan order / docs/PLAN.md#B8"
+      output: "apps/api/tests/integration/test_proxy_persistence.py"
+      evidence: "Missing/unknown/revoked key rejection and log-failure pass-through tests pass."
+    - upstream: "t2.1.3-backend.md#Limits / Follow-up"
+      output: "apps/api/overcall/deps.py and proxy integration tests"
+      evidence: "Valid stored HMAC key reaches the mock upstream and its ID is attached to the request log."
+test_results:
+  t2.1.4:
+    command: "<repo>\\apps\\api\\.venv\\Scripts\\python.exe -m pytest -q -c <repo>\\apps\\api\\pyproject.toml <repo>\\apps\\api\\tests (run from temp with PYTHONPATH=<repo>\\apps\\api)"
+    passed: 77
+    failed: 0
+    skipped: 2
+    failures: []
+warnings:
+  - severity: INFO
+    message: "PostgreSQL integration checks were skipped because TEST_DATABASE_URL is not configured; no live DB or production credential probe was performed."
+  - severity: INFO
+    message: "No API contract shell script exists at the repository root; local Uvicorn plus curl.exe verified HTTP 200 with a controlled fake session. Live Postgres verification remains unavailable."
+protocol_violation: false
+errors: []

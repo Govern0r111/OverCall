@@ -28,6 +28,16 @@ test("the primary links point to signup and the demo routes", async ({ page }) =
   await expect(page).toHaveURL(/\/app$/);
 });
 
+test("the skip link moves focus to the main content", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("Tab");
+
+  const skipLink = page.getByRole("link", { name: "Skip to content" });
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+});
+
 test("FAQ can be opened with the keyboard and the page fits common widths", async ({ page }) => {
   await page.goto("/");
   const summary = page.locator("details summary").first();
@@ -38,9 +48,13 @@ test("FAQ can be opened with the keyboard and the page fits common widths", asyn
   for (const width of [320, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     const hasHorizontalOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
     expect(hasHorizontalOverflow).toBe(false);
+    if (width === 320) {
+      const signup = await page.getByRole("link", { name: "Sign up" }).boundingBox();
+      expect(signup?.height).toBeLessThanOrEqual(36);
+    }
   }
 });
 
@@ -56,7 +70,7 @@ for (const theme of ["light", "dark"]) {
     for (const width of [320, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       const hasHorizontalOverflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > window.innerWidth,
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
       );
       expect(hasHorizontalOverflow, `${theme} theme at ${width}px`).toBe(false);
     }
