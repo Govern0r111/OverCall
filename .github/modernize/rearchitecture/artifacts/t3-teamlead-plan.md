@@ -4,6 +4,10 @@
 **Source checklist:** `docs/PLAN.md`
 **Scope:** 60 unchecked rows currently in F2–F7, B1–B11, I1–I3, and Appendix A. F1 is checked in the source and is not repeated.
 
+## Re-run after architecture evidence correction
+
+The prior planning attempt recorded one HIGH because `t2-architect.md` contained superseded route/auth observations. That evidence issue is resolved by `.github/modernize/rearchitecture/artifacts/t2.5-architect.md`, which reconciles the current `/v1` and `/proxy` routing, JWT authentication, frontend DTOs, and detection status against later implementation evidence and reports PASS with 0 HIGH and 0 CRITICAL findings. This plan therefore uses the corrected local integration boundary and does not carry the old route/auth mismatch as an open issue. Real Supabase/OAuth, hosted CI, PostgreSQL-only checks, ingest-key lifecycle, broad tenant isolation, and production verification remain separate open acceptance gates.
+
 ## Summary
 
 Execute the remaining checklist in dependency order, preserving the plan’s F/B/I module boundaries. First establish local DB/API and synthetic-data evidence; then complete detection, auth, API-contract, mock/proxy, and streaming work; then finish dependent frontend and integration checks; finally perform deployment, hardening, and handoff gates. Tasks may inspect existing implementation and close a row without code changes only when the exact criterion is directly verified with reproducible evidence.
@@ -15,7 +19,7 @@ Do not treat the later local signed-in demo run as real Supabase/OAuth evidence.
 - Current checklist scan found 60 unchecked rows: F2–F7: 8; B1–B11: 34; I1–I3: 10; Appendix A: 8.
 - F1 rows are checked; the user’s visual review at 320/768/1280px in both themes and the navigation-wrap fix are not repeated. B11’s separate overhead/FAQ criterion may require updating an F1 FAQ number after measurement, but does not reopen F1’s visual checklist.
 - `project-profile.yaml` says `grouping_needed: false`; no topology or fanout artifact was found. Existing F/B/I module names are the task boundaries.
-- `t2-architect.md` contains stale claims that the client still uses `/api` and that current-user auth is a 401 placeholder. Current `apps/web/src/lib/api.ts` uses `/v1`; current `apps/api/overcall/deps.py` verifies JWTs; `t2.2.1-frontend.md` documents DTO alignment. This plan uses those later/current facts for task ordering, while retaining the real-account and CI verification gates.
+- `t2-architect.md`'s earlier route/auth observations are historical and superseded by its final re-review and `t2.5-architect.md`. The corrected evidence confirms `/v1` and `/proxy` route wiring, JWT verification, frontend DTO alignment, and persisted `succeeded`/public `completed` detection status. Do not retain the old route/auth mismatch as a current blocker; keep real-account, hosted CI, PostgreSQL-only, ingest-key lifecycle, and isolation gates open where they remain unverified.
 - `.github/modernize/rearchitecture/context.md`, `decisions.md`, and `constitution.md` were absent. This plan does not invent project principles; it follows the user’s explicit constraints and the supplied PM/architecture evidence.
 - Pre-existing modifications to `.github/modernize/rearchitecture/artifacts/project-profile.yaml` and `board.md` were observed and left untouched.
 
@@ -314,23 +318,31 @@ vercel.json            Frontend deployment configuration
 ## Upstream Artifacts Consumed
 
 - `.github/modernize/rearchitecture/artifacts/t1-pm.md` — unchecked inventory and manual/external blockers.
-- `.github/modernize/rearchitecture/artifacts/t2-architect.md` — architecture map and risk inventory; stale route/auth statements are superseded by current source and later frontend evidence.
+- `.github/modernize/rearchitecture/artifacts/t2-architect.md` — architecture map, final route/auth re-review, and remaining validation boundaries.
 - `.github/modernize/rearchitecture/artifacts/t2.1-backend.md` — API runtime and test evidence, including PostgreSQL skips.
-- `.github/modernize/rearchitecture/artifacts/t2.2-frontend.md` — route alignment and identified integration risks.
-- `.github/modernize/rearchitecture/artifacts/t2.2.1-frontend.md` — DTO alignment and signed-in demo evidence.
+- `.github/modernize/rearchitecture/artifacts/t2.2-frontend.md` — final local browser/API integration evidence and its test-auth boundary.
+- `.github/modernize/rearchitecture/artifacts/t2.2.1-frontend.md` — DTO alignment, adapters, and signed-in demo evidence.
+- `.github/modernize/rearchitecture/artifacts/t2.3-backend.md` — JWT verification evidence and external-provider limits.
+- `.github/modernize/rearchitecture/artifacts/t2.4-backend.md` — persisted detection status and public response mapping.
+- `.github/modernize/rearchitecture/artifacts/t2.5-architect.md` — authoritative reconciliation of the previously stale route/auth/status claims.
 - `docs/PLAN.md`, `apps/web/src/lib/api.ts`, `apps/api/overcall/deps.py`, `apps/web/package.json`, `apps/api/pyproject.toml`, `project-profile.yaml` — current acceptance state, routes, auth, commands, and module grouping.
 
 ## Evidence Mapping
 
 - `t1-pm.md#Unchecked items, in plan order` → checklist criteria in `checkpoints/t3-checklist-to-plan.yaml`.
 - `t1-pm.md#Manual and external preconditions` → Open Gates and T002/T018/T020/T022/T024/T026/T029.
-- `t2-architect.md#Material architecture findings for planning` → step dependencies for API, proxy, detection, and deployment; stale portions are corrected by later/current evidence.
+- `t2-architect.md#Final re-review after route, DTO, auth, and detection-status remediation` plus `t2.5-architect.md#Reconciled claims` → current `/v1` and `/proxy` route/auth/DTO/status facts used by T008, T009, T019, and the integration dependencies; the superseded mismatch is not carried as a blocker.
 - `t2.1-backend.md#Test Results` → API test strategy and PostgreSQL-specific limitations.
-- `t2.2.1-frontend.md#Test Results` → frontend Vitest/Playwright/build/lint stack; signed-in demo is not real-account evidence.
+- `t2.2-frontend.md#Final Re-verification After t2.4` and `t2.2.1-frontend.md#Remaining Boundaries` → local signed-in demo/API evidence, frontend test commands, and the explicit real-account boundary.
+- `t2.3-backend.md#Test Results` / `#Remaining Boundaries` → local JWT verification is implemented; external provider/JWKS and key-lifecycle/isolation gates remain distinct.
+- `t2.4-backend.md#Evidence Mapping` → detection DB status `succeeded` versus public `completed` semantics.
 - `project-profile.yaml#assessment` → existing F/B/I group labels; no G-group topology.
 
 ## Validation Results
 
 - Current unchecked rows were scanned directly in `docs/PLAN.md`: 60.
+- Group counts: F2–F7 = 8; B1–B11 = 34; I1–I3 = 10; Appendix A = 8. F1 is excluded and not repeated.
+- Architecture correction: `t2.5-architect.md` reports PASS, 0 HIGH, 0 CRITICAL; the old route/auth mismatch is resolved. No open architecture finding blocks this plan.
 - Environment probes: Docker daemon available; Node `v22.22.0`; Python `3.13.3`.
 - No application tests were run because this task produced a plan only.
+- Pre-existing modifications in `project-profile.yaml` and `board.md` were preserved.

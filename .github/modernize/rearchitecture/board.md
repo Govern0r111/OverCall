@@ -10,7 +10,7 @@
 - ✅ t1 [pm] Inventory remaining unchecked plan items and identify manual/external blockers (12:43:47Z→12:45:53Z, 2m 6s)
 - ✅ t2 [architect] Final re-review after route, DTO, auth, and detection-status remediation; prior attempts reported HIGH/CRITICAL findings (second/final allowed retry) (15:15:32Z→15:18:27Z, 2m 55s) [deps: t1, t2.1, t2.2, t2.2.1, t2.3, t2.4]
 
-### Phase: Analysis remediation
+### Phase: Analysis remediation 📌 83e877d
 - ✅ t2.5 [architect] Reconcile stale route/auth claims in the architecture artifact with current verified implementation evidence (15:33:49Z→15:35:42Z, 1m 53s) [deps: t2, t2.1, t2.2, t2.3, t2.4]
 
 ### Phase: Remediation 📌 8a2514d
@@ -27,6 +27,6 @@
 - ✅ t2.4 [backend] Align detection-run status transitions with the database constraint and verify the API workflow (14:59:56Z→15:03:42Z, 3m 46s) [deps: t1, t2.1.1, t2.1.2]
 
 ### Phase: Plan
-- ⏳ t3 [teamlead] Re-run checklist execution planning after the architecture evidence correction; prior attempt failed on a HIGH finding [deps: t1, t2, t2.1, t2.2, t2.2.1, t2.3, t2.4, t2.5]
+- ✅ t3 [teamlead] Re-run checklist execution planning after the architecture evidence correction; prior attempt failed on a HIGH finding (15:36:58Z→15:39:35Z, 2m 37s) [deps: t1, t2, t2.1, t2.2, t2.2.1, t2.3, t2.4, t2.5]
 
 ⏳ [Execute + Validate phases — pending deep planning completion]
