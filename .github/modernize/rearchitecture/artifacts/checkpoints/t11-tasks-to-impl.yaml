@@ -1,0 +1,65 @@
+metadata:
+  generated: "2026-11-06"
+  source_tasks: ".github/modernize/rearchitecture/artifacts/t3-teamlead-plan.md#T008"
+  last_updated: "2026-11-06"
+summary:
+  total_tasks: 1
+  completed_tasks: 1
+  in_progress_tasks: 0
+  pending_tasks: 0
+  completion_percentage: 100.0
+tasks:
+  - task_id: "T008"
+    description: "Complete ingest-key create/list/use/revoke behavior, one-time plaintext handling, and per-endpoint isolation tests."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "apps/api/overcall/v1_api.py"
+          changes:
+            - change_type: "added"
+              description: "Added protected key creation, listing, and idempotent revoke routes."
+        - file: "apps/api/overcall/db/repos/ingest_keys.py"
+          changes:
+            - change_type: "modified"
+              description: "Added tenant-scoped queries/updates and a transaction advisory lock for the active-key cap."
+        - file: "apps/api/tests/integration/test_ingest_key_lifecycle.py"
+          changes:
+            - change_type: "added"
+              description: "Added lifecycle, privacy, cross-tenant, concurrent-limit, and pepper-rotation integration evidence."
+        - file: "contract/openapi.yaml"
+          changes:
+            - change_type: "modified"
+              description: "Added the ingest-key lifecycle contract."
+    verification:
+      build_passed: null
+      test_results:
+        command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests (isolated PostgreSQL)"
+        passed: 123
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "A separate package build was not run; compileall and live startup passed. Ruff, OpenAPI contract check, local HTTP probes, and git diff --check passed."
+    upstream_trace:
+      plan_item: "P5.1"
+      requirements: ["B10-01", "B10-02"]
+      full_trace: "B10-01/B10-02 → P5.1 → T008 → lifecycle endpoints and PostgreSQL tenant-isolation tests"
+pending_tasks: []
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-T11-B10"
+    requirement: "B10-01/B10-02"
+    plan_phase: "Phase 5"
+    plan_item: "P5.1"
+    tasks: ["T008"]
+    files:
+      - "apps/api/overcall/v1_api.py"
+      - "apps/api/overcall/db/repos/ingest_keys.py"
+      - "apps/api/tests/integration/test_ingest_key_lifecycle.py"
+      - "contract/openapi.yaml"
+    status: "complete"
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "Existing Starlette BlockingPortal deprecation warning."
+  blocking_issues: []

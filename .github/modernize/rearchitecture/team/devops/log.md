@@ -1,0 +1,6 @@
+## [t27] Reconciled deployment configuration locally
+- Codebase/domain discoveries: the API package is built from `apps/api/pyproject.toml`; its local interpreter is Python 3.11.15 and its health route is `/healthz`. The Vite app and its lockfile are under `apps/web`; Vercel config belongs under the configured project root.
+- Wrong assumptions and corrections: the old manifests referenced `backend/`, `frontend/`, `server:app`, CRA output, and a service-role key. The current backend uses the SQLModel/Postgres API and no frontend-visible service-role credential. A clean `npm ci` also needs the existing legacy-peer-resolution convention for the locked date-fns / React Day Picker pair.
+- Debugging dead-ends and what actually worked: workspace `npm ci` first exposed a peer-range conflict, then an in-place retry hit Windows `EPERM` on esbuild; using the same manifest, lock, and `.npmrc` in a clean temp copy passed install, build, and tests. Do not retry destructive installs against another worker's shared `node_modules`.
+- Techniques/patterns worth reusing: keep Render Blueprint at repository root with `rootDir` set to the API; keep Vercel config inside its configured monorepo app root; pin Render's Python via a fully qualified `PYTHON_VERSION`; prove an upgrade switch with a one-field diff.
+- Learnings consumed: [none]

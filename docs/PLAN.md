@@ -749,7 +749,7 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Done when**
 - [x] You can sign up, log in, log out and `/app` redirects when signed out, all with the mock client.
 - [x] Open-redirect tests pass.
-- [ ] Switching `VITE_AUTH_MODE=supabase` against your Supabase project works for email and Google (manual check).
+- [ ] Switching `VITE_AUTH_MODE=supabase` against your Supabase project works for email and Google (manual check). **BLOCKED:** this environment has no Supabase project URL/anon key in `apps/web/.env.local` or process variables, and the Supabase CLI is unavailable. The configured project's Email/Google provider settings and OAuth redirect round-trip therefore cannot be checked here; supply authorized dev-project access and verify both email and Google flows.
 - [x] No auth code outside `src/auth` and `src/features/auth` talks to Supabase.
 
 ### F3 — App shell · size M
@@ -981,10 +981,10 @@ Common rules for every backend module:
 **Edge cases:** the pooler transaction mode needs `statement_cache_size=0` (otherwise random "prepared statement does not exist" errors). Use the pooler host, not the direct IPv6 host. Windows event-loop policy for local dev. Startup without a DB still serves `/healthz`. Timestamps are always `timestamptz`.
 
 **Done when**
-- [ ] `uvicorn overcall.main:app` starts. `/healthz` and `/readyz` work.
-- [ ] Migrations apply to the Docker DB and to the dev Supabase project.
-- [ ] Schema parity and no-body-column tests pass.
-- [ ] No Mongo, Motor, supabase-py or Emergent references remain (`grep` check in CI).
+- [x] `uvicorn overcall.main:app` starts. `/healthz` and `/readyz` work. (Verified against isolated Docker Postgres on 2026-11-06: `/healthz` and `/readyz` both returned 200.)
+- [ ] Migrations apply to the Docker DB and to the dev Supabase project. **BLOCKED (partial):** Docker Postgres 15 migrations applied and verified locally on 2026-11-06; the development Supabase migration was not run. Rechecked on 2026-11-06: the Supabase CLI is unavailable, no `supabase/.temp/project-ref` is linked, and no `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, or `SUPABASE_URL` is present in the environment. The `project_id` in `supabase/config.toml` is local config, not proof of authorized remote access. The remote migration still requires user-controlled development-project access and credentials.
+- [x] Schema parity and no-body-column tests pass. (PostgreSQL schema parity/RLS and metadata-only tests passed against Docker Postgres on 2026-11-06.)
+- [x] No Mongo, Motor, supabase-py or Emergent references remain (`grep` check in CI). (Backend legacy-reference check passed on 2026-11-06; its import matching now avoids false positives on `SupabaseJWTVerifier`.)
 
 ### B2 — Pricing and cost engine · size S
 
@@ -1024,9 +1024,11 @@ Numeric values are carried over from the current files and **re-verified against
 **Edge cases:** negative or huge token counts (clamp and log). `cached > prompt` (clamp). `model` null. Provider unknown (raise). Missing file (fail at startup). Currency other than USD (reject).
 
 **Done when**
-- [ ] Cost is deterministic and every result carries a basis and a pricing version.
-- [ ] Old logs price with old versions.
-- [ ] Price files carry `retrieved_at` and pass the schema.
+- [x] Cost is deterministic and every result carries a basis and a pricing version.
+- [x] Old logs price with old versions.
+- [x] Price files carry `retrieved_at` and pass the schema.
+
+**Verification note (2026-11-06):** The configured OpenAI Standard input/cached-input/output values match the [public pricing page](https://developers.openai.com/api/docs/pricing); the [Batch API](https://developers.openai.com/api/docs/guides/batch) documents a 50% discount for eligible requests. Stripe's [public pricing page](https://stripe.com/pricing) lists transaction pricing, while this file correctly labels the $0.0004 as modelled overhead rather than a Stripe API charge. [AWS pricing](https://aws.amazon.com/pricing/) is service/usage-specific; AWS remains explicitly unsupported and has no modeled price. Updated all three `retrieved_at` values after review. Distinct two-version test prices verify that a timestamp before a new effective date produces the historical cost and version. The current OpenAI model pages mark the four configured GPT-4/4o model IDs as deprecated (for example, [GPT-4o](https://developers.openai.com/api/docs/models/gpt-4o)); the historical snapshot was retained rather than silently changing supported models.
 
 ### B3 — Synthetic data generator · size M
 
@@ -1059,10 +1061,12 @@ A request can carry labels for several rules. Logs contain no `ground_truth`, `r
 **Edge cases:** seed 0, `days=1`, `days=30` (cap volume). Overlapping patterns on one request. Time zone is UTC only.
 
 **Done when**
-- [ ] Deterministic output and a separate ground-truth file.
-- [ ] Hard negatives exist for all seven rules.
-- [ ] `small` fixture committed and validates against the contract schema.
+- [x] Deterministic output and a separate ground-truth file.
+- [x] Hard negatives exist for all seven rules.
+- [x] `small` fixture committed and validates against the contract schema.
 - [ ] `b3-frozen` tag exists before any rule code is written.
+
+**Verification note (2026-11-06):** The generator tests pass, and running the documented CLI for seed 42, seven days, and `small` reproduces both committed fixture files byte-for-byte. The `b3-frozen` tag resolves to a tree that already contains all seven rule implementations, so its existence does not prove that the generator was frozen before rule code. Left this historical criterion unchecked pending coordinator disposition; no tag or generator changes were made. See `.github/modernize/rearchitecture/artifacts/t7-teamlead.md`.
 
 ### B4 — Detection core and Tier 1 rules · size M
 
@@ -1180,7 +1184,7 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 **Edge cases:** `n > 1`, unicode, empty `messages`, very long input, `stream: true` with `n > 1`.
 
 **Done when**
-- [ ] The proxy can talk to it in-process with no network.
+- [x] The proxy can talk to it in-process with no network. (Verified `apps/api/tests/integration/test_proxy_persistence.py::test_proxy_reaches_mock_upstream_in_process`; the proxy uses `httpx.ASGITransport(app=mock_app)`, 2026-11-06.)
 - [ ] Streaming, errors and latency injection work.
 - [ ] It is unreachable from outside the process.
 
@@ -1267,8 +1271,8 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 
 **Done when**
 - [x] No `/v1` route works without a valid token. Verified all 18 `/v1` operations reject missing tokens; an RS256 test token reaches `/v1/me`.
-- [ ] Ingest keys can be created once, listed, used and revoked, and the plaintext is never retrievable again.
-- [ ] Isolation tests pass for every endpoint.
+- [x] Ingest keys can be created once, listed, used and revoked, and the plaintext is never retrievable again. **Verified locally with Docker Postgres and HTTP probes; see `.github/modernize/rearchitecture/artifacts/t11-backend.md`.**
+- [x] Isolation tests pass for every endpoint. **Verified cross-tenant access to every ID-taking versioned route using the PostgreSQL integration matrix; see `.github/modernize/rearchitecture/artifacts/t11-backend.md`.**
 
 ### B11 — Hardening · size M
 
@@ -1385,7 +1389,7 @@ Verification note (2026-11-06): The generated OpenAPI drift check now compares v
 - [ ] Production smoke test passes.
 - [ ] Keep-alive runs and the DB-size alert works.
 - [ ] No secret is in the repo, Vercel public variables or logs.
-- [ ] The upgrade path to an always-on API is a one-line change in `render.yaml`.
+- [x] The upgrade path to an always-on API is a one-line change in `render.yaml` (locally verified: only `plan: free` → `plan: starter` changes).
 
 ---
 

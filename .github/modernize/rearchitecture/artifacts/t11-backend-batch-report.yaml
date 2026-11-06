@@ -1,0 +1,108 @@
+required_endpoints:
+  - method: "POST"
+    path: "/v1/ingest-keys"
+    source: "docs/PLAN.md §3.3"
+    status: "implemented"
+  - method: "GET"
+    path: "/v1/ingest-keys"
+    source: "docs/PLAN.md §3.3"
+    status: "implemented"
+  - method: "DELETE"
+    path: "/v1/ingest-keys/{id}"
+    source: "docs/PLAN.md §3.3"
+    status: "implemented"
+batch_id: "t11"
+completed_tasks: ["T008"]
+blocked_tasks: []
+files_changed:
+  T008:
+    - file: "apps/api/overcall/api_schemas.py"
+      change_type: "modified"
+      description: "Added ingest-key create and response schemas."
+    - file: "apps/api/overcall/auth/ingest_keys.py"
+      change_type: "modified"
+      description: "Centralized the current ingest-key pepper version."
+    - file: "apps/api/overcall/db/repos/ingest_keys.py"
+      change_type: "modified"
+      description: "Added tenant-scoped key listing, creation, revocation, usage updates, and concurrency-safe active-key limiting."
+    - file: "apps/api/overcall/deps.py"
+      change_type: "modified"
+      description: "Passed only an optional rehash digest/version through the proxy auth context."
+    - file: "apps/api/overcall/proxy.py"
+      change_type: "modified"
+      description: "Persisted key usage and pepper rotation in the proxy metadata writer transaction."
+    - file: "apps/api/overcall/v1_api.py"
+      change_type: "modified"
+      description: "Implemented protected POST/GET/DELETE /v1/ingest-keys routes."
+    - file: "apps/api/tests/integration/test_ingest_key_lifecycle.py"
+      change_type: "created"
+      description: "Added PostgreSQL lifecycle, isolation, concurrency-limit, and pepper-rotation tests."
+    - file: "contract/openapi.yaml"
+      change_type: "modified"
+      description: "Added lifecycle endpoint operations and schema expectations."
+    - file: "docs/PLAN.md"
+      change_type: "modified"
+      description: "Checked B10-01 and B10-02 with local verification evidence notes."
+upstream_artifacts_consumed:
+  T008:
+    - artifact: ".github/modernize/rearchitecture/artifacts/t4-backend.md"
+      used_for: "Isolated Docker PostgreSQL and API validation approach."
+    - artifact: ".github/modernize/rearchitecture/artifacts/t3-teamlead-plan.md"
+      used_for: "P5.1/T008 scope and implementation constraints."
+    - artifact: ".github/modernize/rearchitecture/artifacts/checkpoints/t3-checklist-to-plan.yaml"
+      used_for: "B10-01 and B10-02 acceptance criteria."
+evidence_mapping:
+  T008:
+    - upstream: "t3-teamlead-plan.md#T008"
+      output: "apps/api/overcall/v1_api.py, apps/api/overcall/db/repos/ingest_keys.py"
+      evidence: "Lifecycle endpoint integration tests and live local HTTP probes."
+    - upstream: "t3-checklist-to-plan.yaml#B10-01"
+      output: "tests/integration/test_ingest_key_lifecycle.py"
+      evidence: "Create/list/use/revoke, plaintext/hash assertions, concurrent cap, and pepper-rotation tests pass."
+    - upstream: "t3-checklist-to-plan.yaml#B10-02"
+      output: "tests/integration/test_ingest_key_lifecycle.py"
+      evidence: "Cross-tenant tests against Docker PostgreSQL cover issue, log, and ingest-key ID routes."
+traceability:
+  - requirement: "B10-01"
+    plan_item: "P5.1"
+    task: "T008"
+    files:
+      - "apps/api/overcall/v1_api.py"
+      - "apps/api/overcall/db/repos/ingest_keys.py"
+      - "apps/api/tests/integration/test_ingest_key_lifecycle.py"
+    status: "completed"
+  - requirement: "B10-02"
+    plan_item: "P5.1"
+    task: "T008"
+    files:
+      - "apps/api/overcall/db/repos/ingest_keys.py"
+      - "apps/api/tests/integration/test_ingest_key_lifecycle.py"
+    status: "completed"
+endpoint_probes:
+  - method: "GET"
+    path: "/v1/ingest-keys"
+    status: 200
+    result: "PASS"
+  - method: "POST"
+    path: "/v1/ingest-keys"
+    status: 201
+    result: "PASS"
+  - method: "DELETE"
+    path: "/v1/ingest-keys/{key_id}"
+    status: 204
+    result: "PASS"
+  - method: "GET"
+    path: "/proxy/openai/v1/models"
+    status: 200
+    result: "PASS with valid locally-created key; revoked-key check returned expected 401"
+protocol_violation: false
+errors: []
+warnings:
+  - "Pytest emitted the existing Starlette BlockingPortal deprecation warning; all tests passed."
+test_results:
+  T008:
+    command: "apps/api/.venv/Scripts/python.exe -m pytest -q -c apps/api/pyproject.toml apps/api/tests (cwd: %TEMP%; isolated TEST_DATABASE_URL and PYTHONPATH)"
+    passed: 123
+    failed: 0
+    skipped: 0
+    failures: []

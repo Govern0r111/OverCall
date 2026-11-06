@@ -25,3 +25,10 @@
 - Debugging dead-ends and what actually worked: use `#auth-password` to avoid a `getByLabel("Password")` ambiguity with the Show password button; validate unauthenticated 401, then sign in through the local stub, exercise same-origin Vite `/v1` and `/proxy`, and inspect persisted DB status/log rows.
 - Techniques/patterns worth reusing: assert both public API status and persisted enum separately; load actual screens after browser-backed requests to cover DTO rendering, and keep local auth fixtures/keys isolated and explicitly test-only.
 - Learnings consumed: [frontend/live-api-browser-verification, frontend/versioned-api-proxy-paths, frontend/versioned-api-response-mapping]
+
+## [t21] Real Supabase authentication check blocked by missing project setup
+- Codebase/domain discoveries: the web env defaults to mock auth; `.env.example` uses placeholder Supabase values. `authClient` implements email signup/password login and Google OAuth redirect, while `AuthCallback` checks the resulting session.
+- Wrong assumptions and corrections: passing mock auth unit tests and a successful build do not verify real email confirmation or Google OAuth. No project URL/key, Supabase CLI, or authorized provider configuration was available.
+- Debugging dead-ends and what actually worked: none; external setup was absent, so no remote or local provider flow could be truthfully exercised.
+- Techniques/patterns worth reusing: keep the manual F2 check unchecked until both flows run against the configured project; record the exact blocker beside the plan item.
+- Learnings consumed: [frontend/live-api-browser-verification]

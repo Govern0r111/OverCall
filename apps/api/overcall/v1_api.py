@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -26,6 +27,9 @@ from .api_schemas import (
     DetectionRunResponse,
     DetectionRunSummary,
     FacetValue,
+    IngestKeyCreate,
+    IngestKeyCreatedResponse,
+    IngestKeyListItem,
     IssueList,
     IssueResponse,
     LogEntry,
@@ -42,6 +46,7 @@ from .api_schemas import (
     SettingsUpdate,
     Thresholds,
 )
+from .auth.ingest_keys import CURRENT_INGEST_KEY_VERSION, hash_ingest_key
 from .config import Settings
 from .db.models import (
     DetectionRun,
@@ -53,6 +58,7 @@ from .db.models import (
 )
 from .db.repos import (
     DetectionRunRepository,
+    IngestKeyRepository,
     IssueRepository,
     RequestLogRepository,
     UserSettingsRepository,
@@ -729,6 +735,76 @@ async def get_log(
     if log is None:
         raise OvercallError("not_found", 404, "The requested log was not found.")
     return await _log_response(session, user.user_id, log)
+
+
+@router.post(
+    "/ingest-keys",
+    response_model=IngestKeyCreatedResponse,
+    status_code=201,
+)
+async def create_ingest_key(
+    body: IngestKeyCreate,
+    user: UserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> IngestKeyCreatedResponse:
+    app_settings: Settings | None = session.info.get("app_settings")
+    pepper = app_settings.ingest_key_pepper if app_settings is not None else None
+    if pepper is None:
+        raise OvercallError("not_ready", 503, "The service is not ready. Try again shortly.")
+
+    plaintext = f"oc_{secrets.token_urlsafe(32)}"
+    row = await IngestKeyRepository(session).create_for_user(
+        user.user_id,
+        name=body.name,
+        prefix=plaintext[:9],
+        key_hash=hash_ingest_key(plaintext, pepper.get_secret_value()),
+        pepper_version=CURRENT_INGEST_KEY_VERSION,
+    )
+    if row is None:
+        raise OvercallError(
+            "conflict",
+            409,
+            "This action conflicts with the current state.",
+        )
+
+    await session.commit()
+    return IngestKeyCreatedResponse(
+        id=row.id,
+        name=row.name,
+        prefix=row.prefix,
+        key=plaintext,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/ingest-keys", response_model=list[IngestKeyListItem])
+async def list_ingest_keys(
+    user: UserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[IngestKeyListItem]:
+    rows = await IngestKeyRepository(session).list_for_user(user.user_id)
+    return [
+        IngestKeyListItem(
+            id=row.id,
+            name=row.name,
+            prefix=row.prefix,
+            created_at=row.created_at,
+            last_used_at=row.last_used_at,
+            revoked_at=row.revoked_at,
+        )
+        for row in rows
+    ]
+
+
+@router.delete("/ingest-keys/{key_id}", status_code=204, response_class=Response)
+async def revoke_ingest_key(
+    key_id: UUID,
+    user: UserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    await IngestKeyRepository(session).revoke_for_user(user.user_id, key_id)
+    await session.commit()
+    return Response(status_code=204)
 
 
 def _provider_pricing(provider: str) -> ProviderPricing | None:

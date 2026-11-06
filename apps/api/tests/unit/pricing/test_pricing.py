@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -39,8 +40,11 @@ def test_pricing_lookup_uses_latest_effective_version_and_preserves_history(
     tmp_path: Path,
 ) -> None:
     source = json.loads((PRICING_FILES / "openai" / "2026-01-15.json").read_text(encoding="utf-8"))
-    earlier = dict(source, version="2026-01-15", effective_from="2026-01-15T00:00:00Z")
-    later = dict(source, version="2026-06-01", effective_from="2026-06-01T00:00:00Z")
+    earlier = deepcopy(source)
+    earlier.update(version="2026-01-15", effective_from="2026-01-15T00:00:00Z")
+    later = deepcopy(source)
+    later.update(version="2026-06-01", effective_from="2026-06-01T00:00:00Z")
+    later["models"]["gpt-4o-mini"]["input_per_1m"] = 0.30
     provider_dir = tmp_path / "openai"
     provider_dir.mkdir()
     (provider_dir / "2026-01-15.json").write_text(json.dumps(earlier), encoding="utf-8")
@@ -51,6 +55,13 @@ def test_pricing_lookup_uses_latest_effective_version_and_preserves_history(
     after = datetime(2026, 9, 1, tzinfo=UTC)
     assert book.for_time("openai", before).version == "2026-01-15"
     assert book.for_time("openai", after).version == "2026-06-01"
+    usage = {"prompt_tokens": 1_000_000, "completion_tokens": 0}
+    old_cost = estimate_cost("openai", "gpt-4o-mini", usage, 200, before, book=book)
+    new_cost = estimate_cost("openai", "gpt-4o-mini", usage, 200, after, book=book)
+    assert old_cost.pricing_version == "2026-01-15"
+    assert old_cost.cost_usd == Decimal("0.15")
+    assert new_cost.pricing_version == "2026-06-01"
+    assert new_cost.cost_usd == Decimal("0.30")
     with pytest.raises(ValueError, match="No openai pricing version"):
         book.for_time("openai", datetime(2025, 12, 31, tzinfo=UTC))
 

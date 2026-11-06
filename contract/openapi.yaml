@@ -15,6 +15,47 @@
         "responses": {"200": {"description": "Account summary"}}
       }
     },
+    "/v1/ingest-keys": {
+      "get": {
+        "operationId": "list_ingest_keys",
+        "x-response-model": "IngestKeyListItem",
+        "x-response-container": "array",
+        "x-response-properties": ["id", "name", "prefix", "created_at", "last_used_at", "revoked_at"],
+        "x-response-required": ["id", "name", "prefix", "created_at", "last_used_at", "revoked_at"],
+        "x-response-types": {"id": "string:uuid", "name": "string", "prefix": "string", "created_at": "string:date-time", "last_used_at": "nullable:string:date-time", "revoked_at": "nullable:string:date-time"},
+        "responses": {"200": {"description": "Ingest keys; plaintext secrets are never included"}}
+      },
+      "post": {
+        "operationId": "create_ingest_key",
+        "x-response-model": "IngestKeyCreatedResponse",
+        "x-response-properties": ["id", "name", "prefix", "key", "created_at"],
+        "x-response-required": ["id", "name", "prefix", "key", "created_at"],
+        "x-response-types": {"id": "string:uuid", "name": "string", "prefix": "string", "key": "string", "created_at": "string:date-time"},
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 60}}
+              }
+            }
+          }
+        },
+        "responses": {"201": {"description": "Key created; plaintext is returned once"}}
+      }
+    },
+    "/v1/ingest-keys/{key_id}": {
+      "delete": {
+        "operationId": "revoke_ingest_key",
+        "parameters": [
+          {"name": "key_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {"204": {"description": "Key revoked; unknown and foreign keys are treated as already revoked"}}
+      }
+    },
     "/v1/overview": {
       "get": {
         "operationId": "get_overview",

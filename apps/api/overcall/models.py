@@ -19,12 +19,8 @@ class BaseDocument(BaseModel):
             doc = {**doc, "id": str(doc["_id"])}
         return cls.model_validate(doc)
 
-    from_mongo = from_record
-
     def to_record(self) -> dict:
         return self.model_dump(by_alias=True)
-
-    to_mongo = to_record
 
 
 class RequestLog(BaseDocument):

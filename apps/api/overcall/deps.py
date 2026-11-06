@@ -9,14 +9,13 @@ from uuid import UUID
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth.ingest_keys import hash_ingest_key
+from .auth.ingest_keys import CURRENT_INGEST_KEY_VERSION, hash_ingest_key
 from .auth.jwt import JWTVerificationError, SupabaseJWTVerifier
 from .db.models import IngestKey
 from .db.repos import IngestKeyRepository
 from .errors import OvercallError
 
 _INGEST_KEY_PATTERN = re.compile(r"^oc_[A-Za-z0-9_-]{43}$")
-_CURRENT_INGEST_KEY_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -29,6 +28,8 @@ class UserContext:
 class IngestKeyContext:
     user_id: UUID
     ingest_key_id: UUID
+    key_hash: str | None = None
+    pepper_version: int | None = None
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -118,7 +119,12 @@ async def get_ingest_key(
 
     if used_previous_pepper:
         record.key_hash = current_hash
-        record.pepper_version = _CURRENT_INGEST_KEY_VERSION
+        record.pepper_version = CURRENT_INGEST_KEY_VERSION
     record.last_used_at = datetime.now(UTC)
     await session.flush()
-    return IngestKeyContext(user_id=record.user_id, ingest_key_id=record.id)
+    return IngestKeyContext(
+        user_id=record.user_id,
+        ingest_key_id=record.id,
+        key_hash=current_hash if used_previous_pepper else None,
+        pepper_version=CURRENT_INGEST_KEY_VERSION if used_previous_pepper else None,
+    )

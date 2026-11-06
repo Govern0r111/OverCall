@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Settings
 from .db.models import RequestLog
-from .db.repos import RequestLogRepository, UserSettingsRepository
+from .db.repos import IngestKeyRepository, RequestLogRepository, UserSettingsRepository
 from .deps import IngestKeyContext, get_db_session, get_ingest_key
 from .hashing import context_hash, normalize_endpoint, payload_hash
 from .logging import get_logger
@@ -90,10 +90,18 @@ async def persist_proxy_log(
     session: AsyncSession,
     user_id: UUID,
     log: RequestLog,
+    ingest_key: IngestKeyContext,
 ) -> None:
     """Write metadata after the upstream response; persistence must never fail the request."""
     try:
         await RequestLogRepository(session, user_id).add(log)
+        if log.ingest_key_id is not None:
+            await IngestKeyRepository(session).mark_used_for_user(
+                user_id,
+                log.ingest_key_id,
+                key_hash=ingest_key.key_hash,
+                pepper_version=ingest_key.pepper_version,
+            )
         await session.commit()
     except Exception as exc:
         try:
@@ -219,7 +227,7 @@ async def proxy(
             error_code=error_code,
             **meta,
         )
-        background_tasks.add_task(persist_proxy_log, session, ingest_key.user_id, log)
+        background_tasks.add_task(persist_proxy_log, session, ingest_key.user_id, log, ingest_key)
     except Exception as exc:
         logger.warning("proxy_log_prepare_failed error_type=%s", type(exc).__name__)
 

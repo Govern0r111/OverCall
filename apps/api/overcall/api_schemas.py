@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class APIModel(BaseModel):
@@ -158,6 +158,35 @@ class MeResponse(APIModel):
     is_demo_data: bool
     has_data: bool
     real_upstream_available: bool
+
+
+class IngestKeyCreate(APIModel):
+    name: str = Field(min_length=1, max_length=60)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name must not be blank")
+        return normalized
+
+
+class IngestKeyCreatedResponse(APIModel):
+    id: UUID
+    name: str
+    prefix: str
+    key: str
+    created_at: datetime
+
+
+class IngestKeyListItem(APIModel):
+    id: UUID
+    name: str
+    prefix: str
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked_at: datetime | None
 
 
 class Thresholds(APIModel):

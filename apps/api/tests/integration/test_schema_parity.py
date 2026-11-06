@@ -6,9 +6,19 @@ from typing import Any
 
 import pytest
 from sqlalchemy import DateTime, Float, Numeric, inspect, text
+from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION, REAL
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from overcall.db.models import SQLModel
+
+
+def _public_tables():
+    # Unqualified SQLModel tables use PostgreSQL's default schema, public.
+    return {
+        table_name: table
+        for table_name, table in SQLModel.metadata.tables.items()
+        if table.schema in (None, "public")
+    }
 
 
 def _test_database_url() -> str:
@@ -30,15 +40,11 @@ def test_postgres_schema_matches_sqlmodel_tables() -> None:
 
                 def read_schema(sync_connection):
                     inspector = inspect(sync_connection)
-                    assert set(inspector.get_table_names(schema="public")) == {
-                        table_name
-                        for table_name, table in SQLModel.metadata.tables.items()
-                        if table.schema == "public"
-                    }
+                    expected_tables = _public_tables()
+                    assert set(inspector.get_table_names(schema="public")) == set(expected_tables)
                     return {
                         table_name: inspector.get_columns(table_name, schema="public")
-                        for table_name, table in SQLModel.metadata.tables.items()
-                        if table.schema == "public"
+                        for table_name in expected_tables
                     }
 
                 return await connection.run_sync(read_schema)
@@ -46,16 +52,10 @@ def test_postgres_schema_matches_sqlmodel_tables() -> None:
             await engine.dispose()
 
     actual = asyncio.run(inspect_schema())
-    expected_tables = {
-        table_name
-        for table_name, table in SQLModel.metadata.tables.items()
-        if table.schema == "public"
-    }
-    assert set(actual) == expected_tables
+    expected_tables = _public_tables()
+    assert set(actual) == set(expected_tables)
 
-    for table_name, table in SQLModel.metadata.tables.items():
-        if table.schema != "public":
-            continue
+    for table_name, table in expected_tables.items():
         actual_columns = {column["name"]: column for column in actual[table_name]}
         assert set(actual_columns) == set(table.columns.keys()), table_name
         for column_name, column in table.columns.items():
@@ -66,22 +66,23 @@ def test_postgres_schema_matches_sqlmodel_tables() -> None:
             assert observed["type"]._type_affinity is column.type._type_affinity, (
                 f"{table_name}.{column_name} type: {observed['type']} != {column.type}"
             )
-            if isinstance(column.type, Numeric):
+            if isinstance(column.type, Numeric) and not isinstance(column.type, Float):
                 assert observed["type"].precision == column.type.precision
                 assert observed["type"].scale == column.type.scale
             if isinstance(column.type, DateTime):
                 assert observed["type"].timezone == column.type.timezone
             if isinstance(column.type, Float):
-                assert observed["type"].precision == column.type.precision
+                expected_float_type = (
+                    REAL
+                    if column.type.precision is not None and column.type.precision <= 24
+                    else DOUBLE_PRECISION
+                )
+                assert isinstance(observed["type"], expected_float_type)
 
 
 def test_rls_is_enabled_without_data_api_policies_or_grants() -> None:
     url = _test_database_url()
-    expected_tables = [
-        table_name
-        for table_name, table in SQLModel.metadata.tables.items()
-        if table.schema == "public"
-    ]
+    expected_tables = list(_public_tables())
 
     async def check_security() -> None:
         engine = create_async_engine(url, connect_args={"statement_cache_size": 0})

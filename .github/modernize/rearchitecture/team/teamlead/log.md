@@ -11,3 +11,17 @@
 - Debugging dead-ends and what actually worked: compare source checklist counts with the existing traceability checkpoint (F=8, B=34, I=10, Appendix A=8) before reusing the plan mapping; this confirmed the criteria map remains valid.
 - Techniques/patterns worth reusing: record the upstream correction and the evidence boundary in the plan/index; avoid changing the checklist or unrelated dirty artifacts during planning-only reruns.
 - Learnings consumed: [teamlead/checklist-evidence-gates]
+
+## [stage2-dag] Generated execute-and-validate DAG from t3 plan artifacts
+- Codebase/domain discoveries: `project-profile.yaml` sets `grouping_needed: false`; no fanout file exists. The t3 plan covers 60 unchecked criteria in 29 tasks and has distinct local, manual-provider, real-data, production, human-timing, soak, and PR gates.
+- Wrong assumptions and corrections: do not treat the whole DAG as only immediately executable code work; preserve blocked gates as explicit tasks and make final conformance report them open. Split T021 (API provenance vs Settings UI) and T026 (retention implementation vs seven-day soak) across role boundaries.
+- Debugging dead-ends and what actually worked: context.md and decisions.md are absent; t3 plan itself documents these absences and preserves F/B/I boundaries without inventing topology groups.
+- Techniques/patterns worth reusing: Stage 2 IDs continue flat after t3; keep output schema fields, direct dependencies, conditional CVE scan, independent smoke/runtime/security reviews, and final checklist completeness/conformance gate.
+- Learnings consumed: [teamlead/checklist-evidence-gates]
+
+## [t7] Determined synthetic baseline disposition
+- Codebase/domain discoveries: `b3-frozen` resolves to `3299fef`, whose tagged tree includes `engine.py`, all seven rule modules, synthetic generator/truth/scenario code, synthetic tests, and both small fixtures.
+- Wrong assumptions and corrections: the tag exists, but its label does not prove a pre-rule freeze; the tagged snapshot already contains the rule implementation, so B3-04 remains historically unmet.
+- Debugging dead-ends and what actually worked: `git tag --list` alone is insufficient; resolve the tag target and inspect its committed tree and rule export list.
+- Techniques/patterns worth reusing: do not move/recreate a historical freeze tag or alter source to simulate chronology; document the evidence and request coordinator disposition.
+- Learnings consumed: [teamlead/checklist-evidence-gates]

@@ -60,3 +60,38 @@
 - Debugging dead-ends and what actually worked: No `TEST_DATABASE_URL` was configured, so PostgreSQL integration checks remained skipped. The TestClient route workflow verified persisted ORM status and public response semantics.
 - Techniques/patterns worth reusing for future tasks: Keep storage enums aligned with SQL constraints, map public lifecycle labels in one helper, and test both write and read API paths.
 - Learnings consumed: [backend/sqlmodel-api-persistence-boundary]
+
+## [t13] Verified the in-process mock upstream
+- Codebase/domain discoveries: `apps/api/overcall/proxy.py` routes mock-mode requests through `httpx.ASGITransport(app=mock_app)` from `apps/api/overcall/mock_llm.py`; the proxy integration test reaches that app without an external upstream.
+- Wrong assumptions and corrections: The B7 file list in `docs/PLAN.md` uses old `overcall/mock_openai/{app,tokens}.py` paths; the working implementation is `overcall/mock_llm.py`.
+- Debugging dead-ends and what actually worked: The named integration test and then the full proxy integration module both passed; no production-code changes were needed.
+- Techniques/patterns worth reusing for future tasks: Verify transport wiring alongside an end-to-end TestClient flow; preserve distinct checklist items for streaming/failure injection and public-route isolation rather than inferring them from a successful chat request.
+- Learnings consumed: [backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary]
+
+## [t4] Verified local API and Docker Postgres foundation
+- Codebase/domain discoveries: `docker-compose.dev.yml` initializes the auth stub and both SQL migrations into a fresh Postgres 15 database; SQLModel public tables use `schema=None`, and PostgreSQL reports `Float(24)` as `REAL`.
+- Wrong assumptions and corrections: The schema-parity test had only been skipped without `TEST_DATABASE_URL`; when a real database was configured it excluded default-schema tables and compared float precision metadata incorrectly. The legacy scan also matched `SupabaseJWTVerifier` as if it were the Supabase SDK.
+- Debugging dead-ends and what actually worked: A full-suite attempt from `apps/api` inherited ambient configuration and failed two environment-sensitive tests; running from `%TEMP%` with settings cleared and only the local test DB URL set passed all 113 tests.
+- Techniques/patterns worth reusing for future tasks: Run migrations against a fresh uniquely named Compose project; inspect tables/RLS, execute the PostgreSQL integration checks, start Uvicorn against that DB, and probe both health/readiness endpoints. Remove temporary Mongo aliases and make SDK-import scans distinguish modules from identifiers while checking dependency names separately in requirements.
+- Learnings consumed: [backend/detection-run-status-boundary, backend/openapi-contract-drift, backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary, backend/supabase-jwks-jwt-authentication]
+
+## [t6] Verified pricing and historical pricing evidence
+- Codebase/domain discoveries: Provider price snapshots record both `version`/`effective_from` and `retrieved_at`; `PricingBook.for_time` is the event-time selector, and request-log rows persist cost, basis, and pricing version. The current repository contains one actual price snapshot per provider.
+- Wrong assumptions and corrections: Re-selecting a version alone was insufficient historical evidence because the old test cloned identical prices. Distinct test rates now prove both historical cost and version selection. Stripe's configured per-call amount is modeled overhead, not a Stripe API fee.
+- Debugging dead-ends and what actually worked: Official current pages verified today's listed rates but do not prove an archived historical price series; the controlled two-version test verifies code behavior without implying production history.
+- Techniques/patterns worth reusing for future tasks: Keep provider source-review date separate from pricing effective date/version. Exercise historical prices with deliberately different temporary snapshots; use the provider endpoint and proxy/synthetic tests to verify version exposure and propagation.
+- Learnings consumed: [backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary, architect/disconnected-api-runtime-boundary]
+
+## [t8] Verified synthetic generator and fixtures
+- Codebase/domain discoveries: `apps/api/tests/test_synthetic.py` tests deterministic generation, rule-label coverage including hard negatives, metadata-only records, schema validity, baseline cleanliness, and generation bounds. The CLI with the fixture's seed and seven-day window reproduces both committed fixture files byte-for-byte.
+- Wrong assumptions and corrections: The `b3-frozen` tag name alone does not establish that it predates rule code; t7 verified that rule implementations were already in its tagged tree.
+- Debugging dead-ends and what actually worked: No generator changes were needed; run the focused suite with the project virtualenv from a temporary directory to keep ambient local configuration out of the test process.
+- Techniques/patterns worth reusing for future tasks: Check fixture tracking, contract validation, and byte-for-byte regeneration independently; keep historical chronology claims separate from current functionality checks.
+- Learnings consumed: [teamlead/synthetic-baseline-tag-validity]
+
+## [t11] Completed ingest-key lifecycle and tenant isolation
+- Codebase/domain discoveries: `/v1/ingest-keys` was absent from the mounted versioned API despite the documented contract. The existing `IngestKey` table supports create/list/revoke without a migration; proxy-key auth remains separate from JWT auth.
+- Wrong assumptions and corrections: A successful proxy response did not prove `last_used_at` was durable. The auth dependency flushed the field, but the background persistence transaction did not retain it; the writer now performs a tenant-scoped update and also persists previous-pepper rehashes.
+- Debugging dead-ends and what actually worked: Docker daemon availability was rechecked after an initial transient negative probe. A uniquely named Compose Postgres project allowed real lifecycle, cross-tenant ID-route, concurrency-limit, pepper-rotation, and startup HTTP verification; the temporary API process, users, container, and volume were removed afterward.
+- Techniques/patterns worth reusing for future tasks: Use a user-scoped SQL update for idempotent revocation, per-user transaction advisory locking around active-key counting, and a response schema that never includes plaintext in list results. Probe protected routes over local HTTP with a locally minted test JWT, not external provider credentials.
+- Learnings consumed: [backend/proxy-ingest-key-verification, backend/sqlmodel-api-persistence-boundary, backend/supabase-jwks-jwt-authentication]

@@ -22,6 +22,7 @@ from overcall.pagination import (
     encode_cursor,
     encode_issue_cursor,
 )
+from overcall.pricing import DEFAULT_PRICING_BOOK
 
 ROOT = Path(__file__).resolve().parents[4]
 USER_ID = UUID("f0f8b461-b1ab-48ae-90c4-e33dc490cb68")
@@ -326,6 +327,25 @@ def test_v1_endpoints_respond_at_runtime(api_client: TestClient) -> None:
             response.status_code,
             response.text,
         )
+
+
+def test_provider_endpoint_exposes_active_versioned_pricing(api_client: TestClient) -> None:
+    response = api_client.get("/v1/providers")
+
+    assert response.status_code == 200
+    providers = {provider["id"]: provider for provider in response.json()}
+    assert set(providers) == {"openai", "stripe", "aws"}
+    for provider_name in providers:
+        expected = DEFAULT_PRICING_BOOK.for_time(provider_name, datetime.now(UTC))
+        pricing = providers[provider_name]["pricing"]
+        assert pricing["version"] == expected.version
+        assert pricing["source_url"] == expected.source_url
+        assert {
+            row["label"]: row["usd_per_1m"] for row in pricing["rows"]
+        } == {
+            f"{model_name} input": float(model.input_per_1m)
+            for model_name, model in expected.models.items()
+        }
 
 
 def test_detection_run_persists_database_status_and_returns_public_status(

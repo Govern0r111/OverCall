@@ -9,3 +9,15 @@ The backend route-to-persistence boundary passes review, but browser integration
 
 ## 2026-11-06T14:58:35Z — Frontend (t2.2 escalation)
 CRITICAL live integration failure: browser-context `POST /v1/detection/run` returned HTTP 500 after the backend wrote status `completed`, which `detection_runs_status_check` rejects (allowed values are `running|succeeded|failed`). Reconcile detection-run lifecycle values with the database constraint and test the flow, then request frontend re-verification. Keep the affected integration checklist item open until clean browser verification.
+
+## 2026-11-06T16:02:09Z — Coordinator (t7 disposition)
+The `b3-frozen` tag does not prove a pre-rule freeze. Do not create a synthetic historical tag, alter rules, or mutate fixtures on that unsupported assumption. Read-only T005 verification may proceed; keep B3-04 and any baseline-dependent change open until the user supplies a valid baseline disposition.
+
+## 2026-11-06T16:02:09Z — Coordinator (t13 follow-up)
+B7 checklist paths for the mock OpenAI app are stale (`overcall/mock_openai/{app,tokens}.py`); the verified implementation and passing integration test are under `apps/api/overcall/mock_llm.py` and `apps/api/tests/integration/test_proxy_persistence.py`. Use the actual implementation path for remaining proxy work.
+
+## 2026-11-06T16:02:09Z — Coordinator (B3 disposition clarification)
+Retain B3-04 as a historical-evidence criterion and leave it unchecked; do not re-scope or fabricate a pre-rule baseline tag. Read-only T005 and rule-behavior checks may proceed. Make code changes only when independently supported by current requirements/tests; do not alter rules or fixtures to manufacture historical provenance.
+
+## 2026-11-06T16:18:24Z — DevOps (t27)
+Local npm reported 34 advisories, including 2 critical, but none were independently confirmed. Task t33 must scan the changed dependency manifests with `skill(cve-remediation)` and report exact verified findings; do not treat npm's advisory count alone as confirmation.

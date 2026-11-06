@@ -14,3 +14,4 @@ Keep local auth fixtures isolated, record them as test-only, and inspect persist
 
 - 2026-11-06 (`OverCall/t2.2`): initial
 - 2026-11-06 (`OverCall/t2.2`): verified successful detection and screen rendering after t2.4; recorded the Supabase CORS preflight-header requirement
+- 2026-11-06 (`OverCall/t21`): confirmed mock auth tests and a build do not satisfy the manual real-Supabase email/Google check; require project configuration and provider access before checking it off
