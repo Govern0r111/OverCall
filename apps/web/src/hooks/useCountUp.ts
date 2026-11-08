@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 export const useCountUp = (target: number, duration = 900): number => {
-  const [value, setValue] = useState(0);
+  const reducedMotion = usePrefersReducedMotion();
+  const [value, setValue] = useState(() => reducedMotion ? target : 0);
   const frameRef = useRef<number>(0);
   const startRef = useRef<number>(0);
 
   useEffect(() => {
+    if (reducedMotion) {
+      cancelAnimationFrame(frameRef.current);
+      setValue(target);
+      return;
+    }
     if (target === 0) {
       setValue(0);
       return;
@@ -22,7 +29,7 @@ export const useCountUp = (target: number, duration = 900): number => {
     };
     frameRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [target, duration]);
+  }, [target, duration, reducedMotion]);
 
   return value;
 };

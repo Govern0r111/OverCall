@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Dict, List
+from dataclasses import dataclass, field
+from typing import Literal
 
 from ..models import RequestLog
 from ..pricing_config import is_ok  # noqa: F401  (re-exported for rules)
@@ -18,9 +18,10 @@ class Finding:
     summary: str
     explanation: str
     suggested_fix: str
-    affected: List[RequestLog]
-    waste_by_request: Dict[str, float]
+    affected: list[RequestLog]
+    waste_by_request: dict[str, float]
     confidence: float = 1.0
+    impact_kind: Literal["spend", "reliability"] = "spend"
 
     @property
     def estimated_savings(self) -> float:
@@ -31,9 +32,19 @@ class Finding:
 class RuleContext:
     w: object
     window_days: float
+    _source_logs: list[RequestLog] | None = field(default=None, init=False, repr=False)
+    _filtered_logs: list[RequestLog] | None = field(default=None, init=False, repr=False)
 
     def monthly(self, usd: float) -> float:
         return usd * 30 / self.window_days
+
+    def filter_logs(self, logs: list[RequestLog]) -> list[RequestLog]:
+        if logs is not self._source_logs:
+            self._source_logs = logs
+            self._filtered_logs = eligible_logs(logs)
+        if self._filtered_logs is None:
+            raise RuntimeError("RuleContext failed to prepare eligible logs")
+        return self._filtered_logs
 
 
 class Rule(ABC):
@@ -41,9 +52,11 @@ class Rule(ABC):
     name: str
     tier: int
     description: str
+    default_enabled = True
+    threshold_keys: tuple[str, ...] = ()
 
     @abstractmethod
-    def detect(self, logs: List[RequestLog], ctx: RuleContext) -> List[Finding]:
+    def detect(self, logs: list[RequestLog], ctx: RuleContext) -> list[Finding]:
         ...
 
 
@@ -58,13 +71,26 @@ def group_by(items, key) -> dict:
     return out
 
 
-def by_endpoint(flagged: List[RequestLog]) -> dict:
-    return group_by(flagged, lambda l: (l.provider, l.endpoint))
+def by_endpoint(flagged: list[RequestLog]) -> dict:
+    return group_by(flagged, lambda log: (log.provider, log.endpoint))
 
 
-def tier1_eligible(logs: list[RequestLog]) -> list[RequestLog]:
-    """Exclude Overcall-origin traffic and unsupported AWS rows from Tier 1 rules."""
-    return [log for log in logs if log.origin != "overcall" and log.provider != "aws"]
+def eligible_logs(logs: list[RequestLog]) -> list[RequestLog]:
+    """Return supported upstream rows in deterministic rule-evaluation order."""
+    eligible = []
+    previous_key = None
+    ordered = True
+    for log in logs:
+        if log.origin == "overcall" or log.provider == "aws":
+            continue
+        key = (log.timestamp, log.id)
+        if previous_key is not None and key < previous_key:
+            ordered = False
+        eligible.append(log)
+        previous_key = key
+    if not ordered:
+        eligible.sort(key=lambda log: (log.timestamp, log.id))
+    return eligible
 
 
 def severity_for(monthly_usd: float, critical_at: float = 20.0, warning_at: float = 2.0) -> str:

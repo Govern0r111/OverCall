@@ -4,8 +4,10 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useClearData, useLoadSynthetic } from "../../hooks/queries";
 import { SettingRow, SettingsSection } from "./SettingsSection";
+import { useAppAuth } from "../../auth/AuthContext";
 
 export const DataSection = () => {
+  const { isDemo } = useAppAuth();
   const [seed, setSeed] = useState("42");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -22,20 +24,22 @@ export const DataSection = () => {
 
   return (
     <SettingsSection testId="settings-data" title="Data" description="Request logs expire after 30 days automatically.">
-      <SettingRow
-        label="Synthetic demo data"
-        help="Replaces existing synthetic logs with 7 days of realistic traffic. The same seed always produces the same data."
-        control={
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground">seed</span>
-            <Input data-testid="synthetic-seed-input" type="number" step="1" aria-label="Synthetic data seed" value={seed} onChange={(e) => setSeed(e.target.value)} className="h-8 w-20 font-mono text-xs" />
-            <Button size="sm" variant="outline" data-testid="settings-load-synthetic-button" disabled={load.isPending || !validSeed} onClick={() => load.mutate(Number(seed))}>
-              {load.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              Load
-            </Button>
-          </div>
-        }
-      />
+      {isDemo && (
+        <SettingRow
+          label="Synthetic demo data"
+          help="Replaces existing synthetic logs with 7 days of realistic traffic. The same seed always produces the same data."
+          control={
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-muted-foreground">seed</span>
+              <Input data-testid="synthetic-seed-input" type="number" step="1" aria-label="Synthetic data seed" value={seed} onChange={(e) => setSeed(e.target.value)} className="h-8 w-20 font-mono text-xs" />
+              <Button size="sm" variant="outline" data-testid="settings-load-synthetic-button" disabled={load.isPending || !validSeed} onClick={() => load.mutate(Number(seed))}>
+                {load.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 motion-safe:animate-spin motion-reduce:hidden" />}
+                Load
+              </Button>
+            </div>
+          }
+        />
+      )}
       <SettingRow
         label="Clear all data"
         help="Deletes every logged request (synthetic and proxied) and all detected issues."

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -10,6 +10,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 class APIModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class ErrorDetail(APIModel):
+    code: str
+    message: str
+    request_id: str
+    details: dict[str, Any] | None = None
+
+
+class ErrorResponse(APIModel):
+    error: ErrorDetail
 
 
 class SampleRequest(APIModel):

@@ -1,27 +1,27 @@
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "../../components/ui/button";
 
 export function Hero() {
   return (
     <section className="hero" aria-labelledby="hero-title">
       <div className="hero__copy">
-        <p className="eyebrow"><Sparkles aria-hidden="true" size={15} /> Free during beta</p>
-        <h1 id="hero-title">See where your API money goes.</h1>
+        <p className="eyebrow"><Sparkles aria-hidden="true" size={15} /> API cost intelligence</p>
+        <h1 id="hero-title">Your API spend, made clear.</h1>
         <p className="hero__lead">
-          Point your API base URL at Overcall. We log request metadata, spot wasteful patterns and
-          show what fixing them would save.
+          Understand API usage, reliability, and estimated savings from request metadata. Provider
+          keys stay in your app; request and response bodies are not stored.
         </p>
         <div className="hero__actions">
-          <Link className="button button--primary" to="/app">
+          <Button asChild size="lg" className="h-11 px-5">
+            <Link to="/app">
             Try the demo <ArrowRight aria-hidden="true" size={17} />
-          </Link>
-          <a className="button button--secondary" href="#how-it-works">See how it works</a>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="h-11 px-5">
+            <a href="#how-it-works">See how it works</a>
+          </Button>
         </div>
-        <p className="hero__privacy">Your provider keys stay in your app. Request and response bodies are not stored.</p>
-      </div>
-      <div className="hero__note" aria-hidden="true">
-        <span className="hero__note-line" />
-        <span>Clearer API costs start with metadata, not prompt access.</span>
       </div>
     </section>
   );

@@ -32,3 +32,10 @@
 - Debugging dead-ends and what actually worked: none; external setup was absent, so no remote or local provider flow could be truthfully exercised.
 - Techniques/patterns worth reusing: keep the manual F2 check unchecked until both flows run against the configured project; record the exact blocker beside the plan item.
 - Learnings consumed: [frontend/live-api-browser-verification]
+
+## [t16] Verified deterministic API type generation and contract blocker
+- Codebase/domain discoveries: `contract/openapi.yaml` has custom `x-response-*` metadata but lacks standard response schemas; the openapi-typescript output contains 19 paths and 22 operations but no response content types.
+- Wrong assumptions and corrections: the OpenAPI contract and fixture files do exist, contrary to the stale F3 blocker, but existence alone does not make their response models usable by standard OpenAPI code generators.
+- Debugging dead-ends and what actually worked: previewing the generator into a temporary file twice confirmed deterministic output; the SHA-256 hashes matched, while the output inspection exposed the missing schemas.
+- Techniques/patterns worth reusing: inspect generated response types before installing a generator or marking a no-diff checklist complete; map custom extensions into standard `responses.*.content.*.schema` definitions through the shared contract owner.
+- Learnings consumed: [frontend/live-api-browser-verification, frontend/versioned-api-proxy-paths, frontend/versioned-api-response-mapping]

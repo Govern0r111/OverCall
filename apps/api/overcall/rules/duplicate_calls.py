@@ -10,7 +10,6 @@ from .base import (
     group_by,
     is_ok,
     severity_for,
-    tier1_eligible,
 )
 
 FIXES = {
@@ -24,12 +23,13 @@ class DuplicateCalls(Rule):
     name = "Duplicate calls"
     tier = 1
     description = "The exact same request (provider, method, payload hash) repeated within the short window after a successful response."
+    threshold_keys = ("short_window_s",)
 
     def detect(self, logs, ctx):
         short = ctx.w.short_window_s
         flagged, gaps = [], {}
         for group in group_by(
-            tier1_eligible(logs), lambda l: (l.provider, l.method, l.req_hash)
+            ctx.filter_logs(logs), lambda l: (l.provider, l.method, l.req_hash)
         ).values():
             for prev, cur in zip(group, group[1:]):
                 g = gap_s(prev, cur)

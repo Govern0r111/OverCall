@@ -17,7 +17,8 @@
       "method": "GET /v1/customers (list, limit up to 100) or expand[]",
       "discount": 0.9,
       "basis": "Stripe does not bill per API request; this reduction applies only to Overcall's explicitly modelled operational overhead, not Stripe fees. https://stripe.com/pricing",
-      "fix": "Fetch customers in pages with the list endpoint or expand the customer on the parent object."
+      "fix": "Fetch customers in pages with the list endpoint or expand the customer on the parent object.",
+      "impact_kind": "reliability"
     }
   },
   "supported": true,

@@ -28,3 +28,10 @@ t28 reported a HIGH finding: the production verification checklist references a 
 
 ## 2026-11-06T16:55:22Z — DevOps (t28.2 broadcast)
 Added .github/workflows/keepalive.yml with scheduled API readiness checks and a protected daily database-size alert, using least-privilege permissions and fail-closed response validation. The workflow requires Actions secrets API_URL and INTERNAL_TOKEN; live schedule, alert delivery, hosted secrets, external pinger, and production checks remain unverified. See .github/modernize/rearchitecture/artifacts/t28.2-devops.md.
+
+
+## 2026-11-06T17:15:52Z — Coordinator (t15/t16/t30 follow-up)
+- t15: Keep B9 open until final-chunk usage parsing/tiktoken estimation is implemented and tested. Docker-based PostgreSQL disconnect logging and Render buffering are still unverified.
+- t16: HIGH finding — 21 OpenAPI operations lack standard response schemas, leaving 22 generated response entries unusable (content?: never). Remediation t16.1 must repair contract response schemas; t16 remains failed until a fresh clean recheck.
+- t30: B11 remains open pending PostgreSQL purge/pg_cron verification and seven-day soak. Separate rate-limit and response-buffer caps were not addressed; follow-up task t30.1 will cover supported local work.
+

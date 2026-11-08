@@ -1,20 +1,28 @@
 from ..pricing_config import PRICING, estimate_cost, model_price
 from .base import Finding, Rule, group_by, is_ok, severity_for
 
-MIN_CALLS = 10
-
 
 class ModelOveruse(Rule):
     id = "model_overuse"
     name = "High-cost model for small tasks"
     tier = 3
     description = "Premium models used for short prompts with short answers where a smaller model is usually sufficient (experimental)."
+    threshold_keys = (
+        "model_overuse_max_prompt_tokens",
+        "model_overuse_max_completion_tokens",
+        "model_overuse_min_calls",
+    )
 
     def detect(self, logs, ctx):
         w, cfg = ctx.w, PRICING["openai"]
         cands = []
-        for l in logs:
-            if l.provider != "openai" or l.endpoint not in cfg["chat_endpoints"] or not is_ok(l.status):
+        for l in ctx.filter_logs(logs):
+            if (
+                l.provider != "openai"
+                or l.endpoint not in cfg["chat_endpoints"]
+                or not is_ok(l.status)
+                or l.uses_tools
+            ):
                 continue
             key, p = model_price(l.model)
             if p["tier"] == "high" and key in cfg["downgrade_map"] and l.prompt_tokens <= w.model_overuse_max_prompt_tokens \
@@ -22,7 +30,7 @@ class ModelOveruse(Rule):
                 cands.append(l)
         findings = []
         for model, items in group_by(cands, lambda l: model_price(l.model)[0]).items():
-            if len(items) < MIN_CALLS:
+            if len(items) < w.model_overuse_min_calls:
                 continue
             target = cfg["downgrade_map"][model]
             waste = {
@@ -39,7 +47,8 @@ class ModelOveruse(Rule):
                 summary=f"{len(items)} short requests (≈{avg_pt:.0f} tokens in, {avg_ct:.0f} out) went to {model}. A smaller model like {target} usually handles tasks this size for a fraction of the cost.",
                 explanation=(
                     f"{model} calls with ≤{w.model_overuse_max_prompt_tokens} prompt and ≤{w.model_overuse_max_completion_tokens} "
-                    f"completion tokens. Savings = price difference vs {target} at identical token counts. "
+                    f"completion tokens; at least {w.model_overuse_min_calls} calls per model. "
+                    f"Savings = price difference vs {target} at identical token counts. "
                     "Output quality is not measured — validate on a sample first."
                 ),
                 suggested_fix=f"Route short classification/extraction prompts to {target} and keep {model} for long or reasoning-heavy requests. Compare outputs on ~100 real inputs before switching.",

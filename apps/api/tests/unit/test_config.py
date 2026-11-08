@@ -16,7 +16,7 @@ def test_secret_values_are_masked_in_repr() -> None:
 
 def test_production_fails_fast_when_required_secrets_are_missing() -> None:
     try:
-        Settings(app_env="production")
+        Settings(_env_file=None, app_env="production")
     except ValidationError as exc:
         assert "DATABASE_URL" in str(exc)
         assert "SUPABASE_URL" in str(exc)

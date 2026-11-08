@@ -17,6 +17,7 @@ services:
       - ./apps/api/tests/sql/00_auth_stub.sql:/docker-entrypoint-initdb.d/00_auth_stub.sql:ro
       - ./supabase/migrations/20261022140000_init.sql:/docker-entrypoint-initdb.d/10_init.sql:ro
       - ./supabase/migrations/20261022140100_rls_retention.sql:/docker-entrypoint-initdb.d/20_rls_retention.sql:ro
+      - ./supabase/migrations/20261106170000_retention_purge.sql:/docker-entrypoint-initdb.d/30_retention_purge.sql:ro
 
 volumes:
   overcall-postgres:

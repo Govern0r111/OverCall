@@ -16,7 +16,7 @@ describe("landing page", () => {
   it("renders the main sections and links to signup and the demo", () => {
     renderLanding();
 
-    expect(screen.getByRole("heading", { level: 1, name: /see where your api money goes/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /your api spend, made clear/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /one small change/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /questions, answered/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /try the demo/i })).toHaveAttribute("href", "/app");

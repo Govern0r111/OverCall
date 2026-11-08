@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -13,7 +14,8 @@ from .auth.ingest_keys import CURRENT_INGEST_KEY_VERSION, hash_ingest_key
 from .auth.jwt import JWTVerificationError, SupabaseJWTVerifier
 from .db.models import IngestKey
 from .db.repos import IngestKeyRepository
-from .errors import OvercallError
+from .errors import ERROR_CATALOG, OvercallError
+from .rate_limits import InMemoryRateLimiter
 
 _INGEST_KEY_PATTERN = re.compile(r"^oc_[A-Za-z0-9_-]{43}$")
 
@@ -46,25 +48,62 @@ async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 async def get_current_user(request: Request) -> UserContext:
     """Verify a Supabase access token before exposing its tenant identity to API routes."""
+    settings = request.app.state.settings
+    limiter: InMemoryRateLimiter = request.app.state.rate_limiter
+    client = request.client
+    auth_key = f"auth-ip:{client.host if client is not None else 'unknown'}"
+    auth_limit = settings.rate_limit_auth_ip_rpm
+    auth_period = 60
+
+    retry_after = limiter.retry_after(auth_key, limit=auth_limit, period_seconds=auth_period)
+    if retry_after is not None:
+        raise _rate_limited_error(retry_after)
+
+    def reject_authentication(code: str, message: str) -> None:
+        retry = limiter.consume(auth_key, limit=auth_limit, period_seconds=auth_period)
+        if retry is not None:
+            raise _rate_limited_error(retry)
+        raise OvercallError(code, 401, message)
+
     authorization = request.headers.get("authorization")
     if authorization is None:
-        raise OvercallError("unauthenticated", 401, "Sign in to continue.")
+        reject_authentication("unauthenticated", "Sign in to continue.")
 
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise OvercallError("unauthenticated", 401, "Sign in to continue.")
+        reject_authentication("unauthenticated", "Sign in to continue.")
 
     verifier: SupabaseJWTVerifier = request.app.state.jwt_verifier
     try:
         claims = await verifier.verify(parts[1])
         user_id = UUID(claims["sub"])
     except (JWTVerificationError, KeyError, TypeError, ValueError) as exc:
-        raise OvercallError(
-            "invalid_token", 401, "Your access token is invalid or expired. Sign in again."
-        ) from exc
+        try:
+            reject_authentication(
+                "invalid_token", "Your access token is invalid or expired. Sign in again."
+            )
+        except OvercallError as error:
+            raise error from exc
+
+    retry_after = limiter.consume(
+        f"api-user:{user_id}",
+        limit=settings.rate_limit_api_rpm,
+        period_seconds=60,
+    )
+    if retry_after is not None:
+        raise _rate_limited_error(retry_after)
 
     email = claims.get("email")
     return UserContext(user_id=user_id, email=email if isinstance(email, str) else None)
+
+
+def _rate_limited_error(retry_after: float) -> OvercallError:
+    return OvercallError(
+        "rate_limited",
+        ERROR_CATALOG["rate_limited"]["status"],
+        ERROR_CATALOG["rate_limited"]["message"],
+        headers={"Retry-After": str(max(1, math.ceil(retry_after)))},
+    )
 
 
 async def require_ingest_key_header(request: Request) -> str:
@@ -116,6 +155,14 @@ async def get_ingest_key(
         )
     if record.id is None:
         raise OvercallError("ingest_key_invalid", 401, "This Overcall key is not valid.")
+
+    retry_after = request.app.state.rate_limiter.consume(
+        f"proxy-key:{record.id}",
+        limit=settings.rate_limit_proxy_rps,
+        period_seconds=1,
+    )
+    if retry_after is not None:
+        raise _rate_limited_error(retry_after)
 
     if used_previous_pepper:
         record.key_hash = current_hash

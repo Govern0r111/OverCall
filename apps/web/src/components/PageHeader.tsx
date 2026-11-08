@@ -1,4 +1,6 @@
 import { ReactNode } from "react";
+import { cn } from "../lib/utils";
+import { Card as ShadcnCard } from "./ui/card";
 
 interface Props {
   title: string;
@@ -7,15 +9,15 @@ interface Props {
 }
 
 export const PageHeader = ({ title, description, actions }: Props) => (
-  <header className="mb-10 flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <h1 data-testid="page-title" className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {description && <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>}
+  <header className="mb-9 flex min-w-0 flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div className="min-w-0">
+      <h1 data-testid="page-title" className="text-balance text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">{title}</h1>
+      {description && <p className="mt-3 max-w-[68ch] text-pretty text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>}
     </div>
-    {actions && <div className="flex items-center gap-2">{actions}</div>}
+    {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div>}
   </header>
 );
 
 export const Card = ({ children, className = "", testId }: { children: ReactNode; className?: string; testId?: string }) => (
-  <section data-testid={testId} className={`rounded-lg border border-border bg-card ${className}`}>{children}</section>
+  <ShadcnCard data-testid={testId} className={cn("border-border bg-card shadow-none", className)}>{children}</ShadcnCard>
 );

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -7,15 +8,17 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from .auth.jwt import SupabaseJWTVerifier
 from .config import Settings, get_settings
 from .db.engine import create_database_engine
-from .errors import OvercallError, register_error_handlers, unhandled_error_handler
+from .errors import ERROR_CATALOG, OvercallError, register_error_handlers, unhandled_error_handler
 from .internal_api import router as internal_router
-from .logging import configure_logging, get_logger, reset_request_id, set_request_id
+from .logging import configure_logging, get_logger, get_request_id, reset_request_id, set_request_id
 from .proxy import router as proxy_router
+from .rate_limits import InMemoryRateLimiter
+from .request_limits import RequestBodyLimitMiddleware
 from .v1_api import router as v1_router
 
 logger = get_logger(__name__)
@@ -41,8 +44,42 @@ class VersionedCorsMiddleware:
             await self.app(scope, receive, send)
 
 
+class ProxyConcurrencyMiddleware:
+    def __init__(self, app, *, max_inflight: int) -> None:
+        self.app = app
+        self.max_inflight = max_inflight
+        self.inflight = 0
+
+    async def __call__(self, scope, receive, send) -> None:
+        path = scope.get("path", "")
+        if scope["type"] == "http" and (path == "/proxy" or path.startswith("/proxy/")):
+            if self.inflight >= self.max_inflight:
+                definition = ERROR_CATALOG["overloaded"]
+                response = JSONResponse(
+                    content={
+                        "error": {
+                            "code": "overloaded",
+                            "message": definition["message"],
+                            "request_id": get_request_id(),
+                        }
+                    },
+                    status_code=definition["status"],
+                    headers={"Retry-After": "1"},
+                )
+                await response(scope, receive, send)
+                return
+            self.inflight += 1
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                self.inflight -= 1
+            return
+        await self.app(scope, receive, send)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or get_settings()
+    os.environ["TIKTOKEN_CACHE_DIR"] = app_settings.tiktoken_cache_dir
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -61,6 +98,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.engine = None
+    app.state.rate_limiter = InMemoryRateLimiter()
     app.state.jwt_verifier = SupabaseJWTVerifier(
         supabase_url=app_settings.supabase_url,
         jwt_secret=(
@@ -75,6 +113,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v1_router)
     app.include_router(proxy_router)
     app.add_middleware(VersionedCorsMiddleware, settings=app_settings)
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=app_settings.max_request_body_bytes,
+    )
+    app.add_middleware(
+        ProxyConcurrencyMiddleware,
+        max_inflight=app_settings.max_inflight,
+    )
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next) -> Response:

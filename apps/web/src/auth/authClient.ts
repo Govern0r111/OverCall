@@ -27,6 +27,7 @@ export interface AuthClient {
   updatePassword(password: string): Promise<void>;
   continueAsDemo(): Promise<AuthUser>;
   isGoogleSignInAvailable(): boolean;
+  isDemoModeAvailable(): boolean;
   onAuthStateChange(callback: (user: AuthUser | null) => void): () => void;
 }
 
@@ -66,6 +67,8 @@ function toAuthUser(user: User, isDemo = false): AuthUser {
 }
 
 function getDemoUser(): AuthUser | null {
+  if (usesSupabaseAuth) return null;
+
   const stored = readDemoSession();
   if (!stored) return null;
 
@@ -125,7 +128,11 @@ export const authClient: AuthClient = {
   },
   async loginWithGoogle() {
     const client = getSupabaseClient();
-    if (!client) throw new Error("Google sign-in is not available in demo mode.");
+    if (!client) {
+      throw new Error(
+        "Google sign-in requires Supabase Auth. Configure VITE_AUTH_MODE=supabase, VITE_SUPABASE_URL, and VITE_SUPABASE_ANON_KEY.",
+      );
+    }
     clearDemoSession();
     const { error } = await client.auth.signInWithOAuth({
       provider: "google",
@@ -182,12 +189,18 @@ export const authClient: AuthClient = {
     if (error) throw error;
   },
   async continueAsDemo() {
+    if (usesSupabaseAuth) {
+      throw new Error("Demo access is only available in mock auth mode.");
+    }
     const user = { id: "demo-user", email: "demo@overcall.local", isDemo: true };
     writeDemoSession(user.email);
     return user;
   },
   isGoogleSignInAvailable() {
     return usesSupabaseAuth && Boolean(supabase);
+  },
+  isDemoModeAvailable() {
+    return !usesSupabaseAuth;
   },
   onAuthStateChange(callback) {
     const onStorage = () => void authClient.me().then(callback);
@@ -207,5 +220,5 @@ export const authClient: AuthClient = {
 };
 
 export function hasDemoSession(): boolean {
-  return readDemoSession() !== null;
+  return Boolean(getDemoUser());
 }

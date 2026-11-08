@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
+from copy import copy
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -225,8 +227,12 @@ class FakeIssueRepository:
             return []
         return [self.row][:limit]
 
-    async def list_for_run(self, run_id):
-        return [self.row] if run_id == self.row.run_id else []
+    async def list_for_run(self, run_id, *, is_demo_data=None):
+        if self.row.run_id != run_id:
+            return []
+        if is_demo_data is not None and self.row.is_demo_data is not is_demo_data:
+            return []
+        return [self.row]
 
     async def get(self, issue_id):
         return self.row if issue_id == self.row.id else None
@@ -311,8 +317,8 @@ def test_v1_endpoints_respond_at_runtime(api_client: TestClient) -> None:
         ("GET", "/v1/rules", None, 200),
         ("POST", "/v1/detection/run", None, 200),
         ("GET", "/v1/detection/runs/latest", None, 200),
-        ("GET", "/v1/accuracy", None, 200),
-        ("POST", "/v1/demo/load", {"seed": 42, "days": 1}, 200),
+        ("GET", "/v1/accuracy", None, 403),
+        ("POST", "/v1/demo/load", {"seed": 42, "days": 1}, 403),
         ("DELETE", "/v1/demo", None, 204),
         ("DELETE", "/v1/data", {"confirm": "delete my data"}, 204),
     ]
@@ -327,6 +333,246 @@ def test_v1_endpoints_respond_at_runtime(api_client: TestClient) -> None:
             response.status_code,
             response.text,
         )
+
+
+def test_live_endpoints_exclude_synthetic_rows(api_client: TestClient, monkeypatch) -> None:
+    live_log = _log_row()
+    demo_log = copy(live_log)
+    demo_log.id = uuid4()
+    demo_log.source = "demo"
+    demo_log.occurred_at = NOW + timedelta(days=1)
+    unknown_log = copy(live_log)
+    unknown_log.id = uuid4()
+    unknown_log.source = "unknown"
+    unknown_log.occurred_at = NOW + timedelta(days=2)
+    logs = [live_log, demo_log, unknown_log]
+
+    live_run = _run_row()
+    demo_run = copy(live_run)
+    demo_run.id = uuid4()
+    demo_run.is_demo_data = True
+    demo_run.started_at = NOW + timedelta(days=1)
+    live_issue = _issue_row()
+    demo_issue = copy(live_issue)
+    demo_issue.id = uuid4()
+    demo_issue.run_id = demo_run.id
+    demo_issue.is_demo_data = True
+    issues = [live_issue, demo_issue]
+    runs = [live_run, demo_run]
+
+    class MixedRequestLogs:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def count(self, *, source=None, provider=None):
+            return sum(
+                (source is None or row.source == source)
+                and (provider is None or row.provider == provider)
+                for row in logs
+            )
+
+        async def list_logs(self, *, limit=200, source=None, provider=None, **_kwargs):
+            rows = [
+                row
+                for row in logs
+                if (source is None or row.source == source)
+                and (provider is None or row.provider == provider)
+            ]
+            return sorted(rows, key=lambda row: row.occurred_at, reverse=True)[:limit]
+
+        async def list_window(self, _start, _end, *, source=None, limit=200_000):
+            return [row for row in logs if source is None or row.source == source][:limit]
+
+        async def get(self, log_id):
+            return next((row for row in logs if row.id == log_id), None)
+
+    class MixedIssues:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def list_issues(self, *, limit=200, is_demo_data=None, **_kwargs):
+            rows = [
+                row
+                for row in issues
+                if is_demo_data is None or row.is_demo_data is is_demo_data
+            ]
+            return rows[:limit]
+
+        async def list_for_run(self, run_id, *, is_demo_data=None):
+            return [
+                row
+                for row in issues
+                if row.run_id == run_id
+                and (is_demo_data is None or row.is_demo_data is is_demo_data)
+            ]
+
+        async def get(self, issue_id):
+            return next((row for row in issues if row.id == issue_id), None)
+
+    class MixedRuns:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def latest(self, *, is_demo_data=None):
+            selected = [
+                row
+                for row in runs
+                if is_demo_data is None or row.is_demo_data is is_demo_data
+            ]
+            return max(selected, key=lambda row: row.started_at) if selected else None
+
+    monkeypatch.setattr(v1_api, "RequestLogRepository", MixedRequestLogs)
+    monkeypatch.setattr(v1_api, "IssueRepository", MixedIssues)
+    monkeypatch.setattr(v1_api, "DetectionRunRepository", MixedRuns)
+    session = api_client.app.state.test_session
+    statements = []
+    original_execute = session.execute
+
+    async def record_statement(statement):
+        statements.append(statement)
+        return await original_execute(statement)
+
+    monkeypatch.setattr(session, "execute", record_statement)
+
+    me_response = api_client.get("/v1/me")
+    assert me_response.status_code == 200
+    me = me_response.json()
+    assert me["has_data"] is True
+    assert me["is_demo_data"] is False
+    assert me["proxy_status"] == "receiving_traffic"
+    assert me["last_request_at"].startswith("2026-01-01T")
+    issue_count_query = next(statement for statement in statements if "issues" in str(statement))
+    assert "issues.is_demo_data" in str(issue_count_query)
+
+    overview = api_client.get("/v1/overview").json()
+    assert overview["run_id"] == str(live_run.id)
+    assert overview["is_demo_data"] is False
+
+    issue_list = api_client.get("/v1/issues").json()
+    assert [item["id"] for item in issue_list["items"]] == [str(live_issue.id)]
+    assert api_client.get(f"/v1/issues/{demo_issue.id}").status_code == 404
+    issue_sample_queries = [
+        statement
+        for statement in statements
+        if "issue_requests" in str(statement) and "request_logs" in str(statement)
+    ]
+    assert issue_sample_queries
+    assert all("request_logs.source" in str(statement) for statement in issue_sample_queries)
+
+    log_list = api_client.get("/v1/logs?q=abcd").json()
+    assert [item["id"] for item in log_list["items"]] == [str(live_log.id)]
+    assert api_client.get(f"/v1/logs/{demo_log.id}").status_code == 404
+    issue_detail_queries = [
+        statement
+        for statement in statements
+        if "issue_requests" in str(statement) and "issues" in str(statement)
+    ]
+    assert issue_detail_queries
+    assert all("issues.is_demo_data" in str(statement) for statement in issue_detail_queries)
+
+    statements.clear()
+    facets = api_client.get("/v1/logs/facets")
+    assert facets.status_code == 200
+    facet_queries = [statement for statement in statements if "request_logs" in str(statement)]
+    assert len(facet_queries) == 4
+    assert all("request_logs.source" in str(statement) for statement in facet_queries)
+
+    providers = {row["id"]: row for row in api_client.get("/v1/providers").json()}
+    assert providers["openai"]["status"] == "receiving_traffic"
+    assert providers["openai"]["traffic"]["proxy"] == 1
+    assert providers["openai"]["traffic"]["demo"] == 0
+    latest_run = api_client.get("/v1/detection/runs/latest").json()
+    assert latest_run["id"] == str(live_run.id)
+
+    logs[:] = [demo_log, unknown_log]
+    no_live_data = api_client.get("/v1/me").json()
+    assert no_live_data["has_data"] is False
+    assert no_live_data["last_request_at"] is None
+    assert no_live_data["proxy_status"] == "no_key"
+    assert no_live_data["is_demo_data"] is False
+
+
+def test_detection_uses_live_rows_and_preserves_demo_history(
+    api_client: TestClient, monkeypatch
+) -> None:
+    live_log = _log_row()
+    demo_log = copy(live_log)
+    demo_log.id = uuid4()
+    demo_log.source = "demo"
+    logs = [live_log, demo_log]
+    demo_issue = _issue_row()
+    demo_issue.is_demo_data = True
+    issues = [demo_issue]
+    calls = {"source": None, "deleted_source": None}
+
+    class TrackingRequestLogs:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def list_window(self, _start, _end, *, source=None, limit=200_000):
+            calls["source"] = source
+            return [row for row in logs if source is None or row.source == source][:limit]
+
+    class TrackingIssues:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def delete_for_source(self, source):
+            calls["deleted_source"] = source
+            issues[:] = [row for row in issues if row.is_demo_data is not (source == "demo")]
+            return 0
+
+        async def delete_all(self):
+            calls["deleted_source"] = "all"
+            issues.clear()
+            return 0
+
+    class TrackingRuns:
+        def __init__(self, _session, _user_id):
+            pass
+
+        async def get(self, _run_id):
+            return None
+
+    monkeypatch.setattr(v1_api, "RequestLogRepository", TrackingRequestLogs)
+    monkeypatch.setattr(v1_api, "IssueRepository", TrackingIssues)
+    monkeypatch.setattr(v1_api, "DetectionRunRepository", TrackingRuns)
+    monkeypatch.setattr(v1_api, "RULES", [])
+
+    result = asyncio.run(
+        v1_api._perform_detection(api_client.app.state.test_session, USER_ID)
+    )
+
+    assert calls == {"source": "proxy", "deleted_source": "proxy"}
+    assert result.request_count == 1
+    assert result.is_demo_data is False
+    assert issues == [demo_issue]
+
+
+def test_demo_and_accuracy_routes_are_rejected_for_authenticated_api_users(
+    api_client: TestClient,
+) -> None:
+    responses = [
+        api_client.post("/v1/demo/load", json={"seed": 42, "days": 1}),
+        api_client.get("/v1/accuracy"),
+    ]
+
+    for response in responses:
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "forbidden"
+
+
+def test_demo_only_routes_are_documented_with_forbidden_error_envelopes() -> None:
+    contract = json.loads((ROOT / "contract" / "openapi.yaml").read_text(encoding="utf-8"))
+    for path, method in (("/v1/demo/load", "post"), ("/v1/accuracy", "get")):
+        operation = contract["paths"][path][method]
+        assert "200" not in operation["responses"]
+        response = operation["responses"]["403"]
+        assert (
+            response["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/ErrorResponse"
+        )
+        assert "x-response-model" not in operation
 
 
 def test_provider_endpoint_exposes_active_versioned_pricing(api_client: TestClient) -> None:
@@ -418,6 +664,27 @@ def test_default_settings_response_matches_contract_fixture(
     assert response.json() == fixture
 
 
+def test_contract_includes_generated_success_response_schemas() -> None:
+    contract = json.loads((ROOT / "contract" / "openapi.yaml").read_text(encoding="utf-8"))
+    generated = create_app(Settings(app_env="test", database_url=None)).openapi()
+
+    assert contract.get("components", {}).get("schemas") == generated["components"]["schemas"]
+    for path, operations in contract["paths"].items():
+        for method, operation in operations.items():
+            if method.startswith("x-"):
+                continue
+            generated_operation = generated["paths"][path][method]
+            for status, response in operation["responses"].items():
+                if not status.startswith("2"):
+                    continue
+                expected_content = generated_operation["responses"][status].get("content")
+                assert response.get("content") == expected_content, (
+                    method.upper(),
+                    path,
+                    status,
+                )
+
+
 def _response_shape_paths(value: object, prefix: str = "") -> list[str]:
     """Return object-property paths, marking array items with `[]`."""
     paths: list[str] = []
@@ -466,11 +733,10 @@ def test_every_versioned_json_response_matches_contract_fixture_shape(
         "get_rules": api_client.get("/v1/rules"),
         "run_detection": api_client.post("/v1/detection/run"),
         "latest_detection_run": api_client.get("/v1/detection/runs/latest"),
-        "accuracy": api_client.get("/v1/accuracy"),
-        "load_demo": api_client.post("/v1/demo/load", json={"seed": 42, "days": 1}),
     }
 
-    assert set(response_shapes) == set(operations) == set(responses)
+    blocked_operations = {"accuracy", "load_demo"}
+    assert set(response_shapes) == set(operations) - blocked_operations == set(responses)
     for operation_id, response in responses.items():
         operation = operations[operation_id]
         assert response.status_code == 200, (
@@ -525,10 +791,12 @@ def test_tier_three_issues_require_both_gate_and_explicit_opt_in(
     monkeypatch.setattr(FakeSettingsRepository, "row", settings)
 
     assert api_client.get("/v1/issues?include_experimental=true").json()["items"] == []
+    assert api_client.get(f"/v1/issues/{experimental.id}").status_code == 404
 
     settings.tier3_enabled = True
     assert api_client.get("/v1/issues").json()["items"] == []
     assert len(api_client.get("/v1/issues?include_experimental=true").json()["items"]) == 1
+    assert api_client.get(f"/v1/issues/{experimental.id}").status_code == 200
 
 
 def test_rule_catalog_and_threshold_bounds_match_contract(api_client: TestClient) -> None:

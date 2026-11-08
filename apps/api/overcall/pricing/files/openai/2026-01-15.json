@@ -57,7 +57,8 @@
       "method": "Submit offline embedding jobs through the OpenAI Batch API.",
       "discount": 0.5,
       "basis": "The OpenAI Batch API pricing documentation advertises a 50% discount for eligible batch requests; ordinary array input alone does not reduce per-token prices. https://developers.openai.com/api/docs/guides/batch",
-      "fix": "Collect eligible embedding requests and submit them through the Batch API when asynchronous completion is acceptable."
+      "fix": "Collect eligible embedding requests and submit them through the Batch API when asynchronous completion is acceptable.",
+      "impact_kind": "spend"
     }
   },
   "supported": true,

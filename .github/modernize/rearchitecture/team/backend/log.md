@@ -123,3 +123,24 @@
 - Debugging dead-ends and what actually worked: An initial PowerShell assertion mishandled curl's multi-line output; parsing the JSON response separately produced reliable live HTTP checks against isolated PostgreSQL.
 - Techniques/patterns worth reusing for future tasks: Authenticate an internal route before opening its database session, compare the bearer token in constant time, conceal access failures with 404, and keep the route out of generated OpenAPI. Verify the SQL function with real local PostgreSQL and separately probe missing, wrong, and valid credentials over HTTP.
 - Learnings consumed: [backend/supabase-jwks-jwt-authentication, backend/sqlmodel-api-persistence-boundary, devops/db-size-alert-prerequisites]
+
+## [t30] Added retention and request-body bounds
+- Codebase/domain discoveries: `max_request_body_bytes`, `log_retention_default_days`, and `max_logs_per_user` were configured but not enforced. The existing Compose Postgres image does not guarantee `pg_cron`; scheduling must be conditional and independently verified.
+- Wrong assumptions and corrections: Buffering the full request in middleware would add a second body-sized copy and can disturb SSE disconnect behavior. Counting streamed receive chunks preserves the request path and rejects the first over-limit chunk.
+- Debugging dead-ends and what actually worked: Docker and `TEST_DATABASE_URL` were unavailable, so the SQL integration test skipped; unit/ASGI tests and the final full API suite passed. A first full-suite run overlapped a concurrent SSE test edit; the final full run passed.
+- Techniques/patterns worth reusing for future tasks: Keep SQL purges batched with a fixed search path; authorize internal operations before database acquisition; do not mark retention complete until PostgreSQL, cron, and soak evidence exists.
+- Learnings consumed: [backend/sqlmodel-api-persistence-boundary, backend/protected-internal-operations-endpoint, backend/proxy-log-background-evidence]
+
+## [t15] Added SSE pass-through and disconnect finalization
+- Codebase/domain discoveries: The mounted proxy previously buffered all upstream responses; FastAPI 0.115.12 also closes yielded dependencies before sending `StreamingResponse` bodies, so stream-finalization logging must use a fresh session from the app engine.
+- Wrong assumptions and corrections: TestClient does not expose chunk timing in the final response object. An ASGI send-boundary observer confirmed each chunk reached the send layer before the next upstream chunk was read.
+- Debugging dead-ends and what actually worked: The disconnect simulation must race the ASGI receive with a test event so an already-pending receive can be interrupted. A project-root test run reads `.env` and caused unrelated configuration/CORS failures; the isolated `%TEMP%` full-suite run passed.
+- Techniques/patterns worth reusing for future tasks: Detect SSE from upstream response `content-type`, forward `aiter_raw()` without buffering, count bytes after the send resumes, and shield close/log finalization through client cancellation or upstream read failure. B9 final-usage parsing and tiktoken estimation remain open.
+- Learnings consumed: [backend/mock-upstream-location, backend/proxy-ingest-key-verification, backend/proxy-log-background-evidence]
+
+## [t10] Verified shared rules and Tier 3 gates
+- Codebase/domain discoveries: The SQLModel-backed `/v1` detection path runs the same seven rule classes; shared eligibility must filter `origin="overcall"` and AWS before grouping, then sort by `(timestamp, id)`. Tier 3 additionally requires configured context-token semantics, tool exclusion, and the settings-driven minimum call count.
+- Wrong assumptions and corrections: Tier 3's visible issue-list gate alone does not prove detection is disabled; the detection loop needs a separately tested rule-enabled predicate. Prompt token totals are not the context-token measure used for token-bloat savings.
+- Debugging dead-ends and what actually worked: The first full-suite run from the project directory picked up `.env` and exposed unrelated config/CORS test failures. Running from `%TEMP%` with the API package on `PYTHONPATH` gave a clean full-suite result. PostgreSQL integration tests skip without `TEST_DATABASE_URL`.
+- Techniques/patterns worth reusing for future tasks: Keep shared eligibility in `rules/base.py`, declare each rule's threshold keys alongside the class, and validate both Tier 3 detection gating and issue list/detail visibility. The mounted `/v1/accuracy` path can be checked against generated positives and hard negatives without the stale collection-backed engine.
+- Learnings consumed: [backend/tier1-rule-input-eligibility, backend/pricing-source-revalidation]

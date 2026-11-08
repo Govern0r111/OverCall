@@ -26,6 +26,7 @@ class BatchEquivalent(BaseModel):
     discount: Decimal = Field(ge=0, le=1)
     basis: str = Field(min_length=1)
     fix: str = Field(min_length=1)
+    impact_kind: Literal["spend", "reliability"]
 
 
 class PricingFile(BaseModel):

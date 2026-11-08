@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { components } from "../api/schema";
 import { authClient, hasDemoSession } from "../auth/authClient";
 import { env } from "./env";
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ export type Currency = "INR" | "USD";
 
 /** JSON representation of Decimal fields returned by the versioned API. */
 export type ApiDecimal = string;
+export type ApiMe = components["schemas"]["MeResponse"];
 
 export interface ApiSampleRequest {
   request_id: string;
@@ -112,6 +114,13 @@ export interface ApiLogEntry {
 export interface ApiLogList {
   items: ApiLogEntry[];
   next_cursor: string | null;
+}
+
+export interface ApiLogFacets {
+  providers: string[];
+  endpoints: Array<{ value: string; count: number }>;
+  callers: string[];
+  models: string[];
 }
 
 export interface ApiTrendEntry {
@@ -204,6 +213,9 @@ export interface ApiProvider {
   notes: string | null;
 }
 
+export type ApiIngestKey = components["schemas"]["IngestKeyListItem"];
+export type ApiIngestKeyCreated = components["schemas"]["IngestKeyCreatedResponse"];
+
 export interface ApiAccuracyRule {
   rule_id: string;
   tier: number;
@@ -246,12 +258,22 @@ export interface LogEntry {
   method?: string;
   status: number;
   latency_ms: number;
+  ttfb_ms: number | null;
   req_size: number;
   resp_size: number;
   prompt_tokens: number;
   completion_tokens: number;
+  tokens_estimated: boolean;
+  stream: boolean;
   cost_usd: number;
+  cost_basis: string;
+  pricing_version: string | null;
+  has_idempotency_key: boolean;
+  error_code: string | null;
+  origin: string;
+  is_demo: boolean;
   flagged_by: string[];
+  flagged_issues: ApiLogEntry["flagged_by"];
   issue_ids?: string[];
   caller?: string | null;
   model?: string | null;
@@ -299,6 +321,9 @@ export interface Overview {
   projected_monthly_usd: number;
   waste_pct: number;
   experimental_projected_monthly_usd: number;
+  reliability_count: number;
+  reliability_overhead_monthly_usd: number;
+  low_confidence_projection: boolean;
   issue_counts: Record<Severity, number>;
   trend: TrendPoint[];
   top_issues: Issue[];
@@ -354,7 +379,8 @@ export interface Provider {
 
 export type Evaluation = ApiAccuracy;
 
-const amount = (value: ApiDecimal) => Number(value);
+const finite = (value: number) => Number.isFinite(value) ? value : 0;
+const amount = (value: ApiDecimal) => finite(Number(value));
 
 export const fromApiIssue = (issue: ApiIssue): Issue => ({
   id: issue.id,
@@ -388,21 +414,28 @@ export const fromApiIssue = (issue: ApiIssue): Issue => ({
 });
 
 export const fromApiOverview = (overview: ApiOverview): Overview => {
-  const days = overview.window.days;
+  const days = finite(overview.window.days);
   const monthlySpend = days > 0 ? amount(overview.total_spend_usd) * 30 / days : 0;
   return {
     has_data: overview.has_data,
     is_demo_data: overview.is_demo_data,
-    request_count: overview.request_count,
-    flagged_request_count: overview.flagged_request_count,
+    request_count: finite(overview.request_count),
+    flagged_request_count: finite(overview.flagged_request_count),
     window_days: days,
     total_cost_usd: amount(overview.total_spend_usd),
     projected_monthly_cost_usd: monthlySpend,
     window_savings_usd: amount(overview.spend_savings.window_usd),
     projected_monthly_usd: amount(overview.spend_savings.projected_monthly_usd),
-    waste_pct: overview.spend_savings.percent_of_spend / 100,
+    waste_pct: finite(overview.spend_savings.percent_of_spend) / 100,
     experimental_projected_monthly_usd: amount(overview.experimental_spend_savings.projected_monthly_usd),
-    issue_counts: overview.severity_breakdown,
+    reliability_count: finite(overview.reliability_findings.count),
+    reliability_overhead_monthly_usd: amount(overview.reliability_findings.modelled_overhead_monthly_usd),
+    low_confidence_projection: overview.window.low_confidence_projection,
+    issue_counts: {
+      critical: finite(overview.severity_breakdown.critical),
+      warning: finite(overview.severity_breakdown.warning),
+      info: finite(overview.severity_breakdown.info),
+    },
     trend: overview.trend.map((entry) => ({
       date: entry.date,
       cost_usd: amount(entry.spend_usd),
@@ -421,12 +454,22 @@ export const fromApiLog = (log: ApiLogEntry): LogEntry => ({
   method: log.method,
   status: log.status,
   latency_ms: log.latency_ms,
+  ttfb_ms: log.ttfb_ms,
   req_size: log.req_size,
   resp_size: log.resp_size,
   prompt_tokens: log.prompt_tokens,
   completion_tokens: log.completion_tokens,
+  tokens_estimated: log.tokens_estimated,
+  stream: log.stream,
   cost_usd: amount(log.cost_usd),
+  cost_basis: log.cost_basis,
+  pricing_version: log.pricing_version,
+  has_idempotency_key: log.has_idempotency_key,
+  error_code: log.error_code,
+  origin: log.origin,
+  is_demo: log.is_demo,
   flagged_by: log.flagged_by.map((flag) => flag.rule_id),
+  flagged_issues: log.flagged_by,
   issue_ids: log.flagged_by.map((flag) => flag.issue_id),
   caller: log.caller,
   model: log.model,

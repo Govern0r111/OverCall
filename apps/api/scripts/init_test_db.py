@@ -24,7 +24,7 @@ async def initialize() -> None:
     try:
         async with connection.transaction():
             await connection.execute((API_ROOT / "tests" / "sql" / "00_auth_stub.sql").read_text())
-            for migration in sorted(MIGRATIONS.glob("20261022*.sql")):
+            for migration in sorted(MIGRATIONS.glob("*.sql")):
                 await connection.execute(migration.read_text(encoding="utf-8"))
     finally:
         await connection.close()

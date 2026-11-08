@@ -9,7 +9,13 @@ from overcall.main import create_app
 
 @pytest.fixture
 def api_settings() -> Settings:
-    return Settings(app_env="test", database_url=None, release="test")
+    return Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=None,
+        cors_origins="http://localhost:5173",
+        release="test",
+    )
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "../../components/ThemeToggle";
+import { Button } from "../../components/ui/button";
 
 export function Nav() {
   return (
@@ -19,7 +20,9 @@ export function Nav() {
           <a className="site-nav__how" href="#how-it-works">How it works</a>
           <ThemeToggle />
           <Link className="site-nav__login" to="/login">Log in</Link>
-          <Link className="button button--secondary site-nav__signup" to="/signup">Sign up</Link>
+          <Button asChild className="site-nav__signup h-10 px-4">
+            <Link to="/signup">Sign up</Link>
+          </Button>
         </div>
       </nav>
     </header>

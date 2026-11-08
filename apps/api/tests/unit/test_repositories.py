@@ -144,6 +144,23 @@ def test_issue_list_hides_experimental_rows_by_default_and_scopes_owner() -> Non
     assert user_id in params.values()
 
 
+def test_issue_list_for_run_can_exclude_demo_data() -> None:
+    user_id = uuid4()
+    run_id = uuid4()
+    session = FakeSession(FakeResult())
+
+    asyncio.run(
+        IssueRepository(session, user_id).list_for_run(run_id, is_demo_data=False)
+    )
+
+    sql, params = _compiled(session.statements[0])
+    assert "issues.user_id =" in sql
+    assert "issues.run_id =" in sql
+    assert "issues.is_demo_data IS false" in sql
+    assert user_id in params.values()
+    assert run_id in params.values()
+
+
 def test_issue_experimental_gate_can_be_enabled_explicitly() -> None:
     session = FakeSession(FakeResult())
     asyncio.run(IssueRepository(session, uuid4()).list_issues(limit=20, include_experimental=True))

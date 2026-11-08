@@ -6,7 +6,6 @@ from .base import (
     group_by,
     is_ok,
     severity_for,
-    tier1_eligible,
 )
 
 FIX = (
@@ -33,12 +32,13 @@ class RetryStorm(Rule):
     name = "Retry storms"
     tier = 1
     description = "Repeated identical calls after a non-2xx response, retried faster than the minimum backoff."
+    threshold_keys = ("retry_min_backoff_ms", "retry_min_attempts")
 
     def detect(self, logs, ctx):
         w = ctx.w
         chains = []
         for group in group_by(
-            tier1_eligible(logs), lambda l: (l.provider, l.method, l.req_hash)
+            ctx.filter_logs(logs), lambda l: (l.provider, l.method, l.req_hash)
         ).values():
             chains += find_chains(group, w.retry_min_backoff_ms, w.retry_min_attempts)
         findings = []

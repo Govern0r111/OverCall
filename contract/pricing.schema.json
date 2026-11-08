@@ -101,12 +101,13 @@
     "batchEquivalent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "discount", "basis", "fix"],
+      "required": ["method", "discount", "basis", "fix", "impact_kind"],
       "properties": {
         "method": {"type": "string", "minLength": 1},
         "discount": {"type": "number", "minimum": 0, "maximum": 1},
         "basis": {"type": "string", "minLength": 1},
-        "fix": {"type": "string", "minLength": 1}
+        "fix": {"type": "string", "minLength": 1},
+        "impact_kind": {"enum": ["spend", "reliability"]}
       }
     }
   }

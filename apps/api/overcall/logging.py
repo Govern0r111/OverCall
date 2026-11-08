@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 _request_id: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+_URI_CREDENTIAL_PATTERN = re.compile(r"(?i)(://[^:/@\s]*:)[^@/\s]+@")
 _SECRET_PATTERNS = [
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)basic\s+[A-Za-z0-9+/=]{16,}"),
@@ -23,6 +24,7 @@ _SECRET_PATTERNS = [
 
 def redact(value: Any) -> str:
     text = value.decode("utf-8", errors="replace") if isinstance(value, bytes) else str(value)
+    text = _URI_CREDENTIAL_PATTERN.sub(r"\1[REDACTED]@", text)
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub("[REDACTED]", text)
     return text
@@ -61,7 +63,7 @@ class JsonFormatter(logging.Formatter):
             "timestamp": datetime.fromtimestamp(record.created, UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "request_id": get_request_id(),
+            "request_id": redact(get_request_id()),
             "message": redact(record.getMessage()),
         }
         if record.exc_text:

@@ -43,6 +43,7 @@ class OvercallError(Exception):
     status: int
     message: str
     details: dict[str, Any] | None = None
+    headers: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
         definition = ERROR_CATALOG.get(self.code)
@@ -60,6 +61,7 @@ def _error_response(
     status: int,
     message: str,
     details: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     error: dict[str, Any] = {
         "code": code,
@@ -68,7 +70,7 @@ def _error_response(
     }
     if details:
         error["details"] = details
-    return JSONResponse(status_code=status, content={"error": error})
+    return JSONResponse(status_code=status, content={"error": error}, headers=headers)
 
 
 def _catalog_error(code: str) -> tuple[int, str]:
@@ -79,7 +81,7 @@ def _catalog_error(code: str) -> tuple[int, str]:
 
 
 async def overcall_error_handler(_request: Request, exc: OvercallError) -> JSONResponse:
-    return _error_response(exc.code, exc.status, exc.message, exc.details)
+    return _error_response(exc.code, exc.status, exc.message, exc.details, exc.headers)
 
 
 async def http_error_handler(_request: Request, exc: StarletteHTTPException) -> JSONResponse:

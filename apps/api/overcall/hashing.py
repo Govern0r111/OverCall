@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl, urlencode
 ID_SEGMENT = re.compile(
     r"^(?:\d+|[0-9a-f-]{20,}|[a-z]{2,8}_(?=[A-Za-z0-9_]*[0-9A-Z])[A-Za-z0-9_]{6,}|[a-z]+-(?=[A-Za-z0-9]*[0-9])[A-Za-z0-9]{8,})$"
 )
+OPAQUE_ID_SEGMENT = re.compile(r"^[A-Za-z0-9._~+%=-]{32,}$")
 
 
 def sha(text: str, n: int = 16) -> str:
@@ -14,7 +15,9 @@ def sha(text: str, n: int = 16) -> str:
 
 def normalize_endpoint(path: str) -> str:
     parts = [p for p in path.split("?")[0].split("/") if p]
-    return "/" + "/".join("{id}" if ID_SEGMENT.match(p) else p for p in parts)
+    return "/" + "/".join(
+        "{id}" if ID_SEGMENT.match(p) or OPAQUE_ID_SEGMENT.match(p) else p for p in parts
+    )
 
 
 def canonical_body(body: bytes, content_type: str) -> str:

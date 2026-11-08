@@ -42,8 +42,9 @@ npm run build
 
 Create or update the Render service from the repository-root `render.yaml` Blueprint. The
 manifest sets `rootDir: apps/api`, installs the package and its pinned dependencies from
-`pyproject.toml`, starts `overcall.main:app`, and uses `/healthz` for the platform health check.
-It pins the service runtime to Python `3.11.15`, matching the local API virtual environment.
+`pyproject.toml`, warms both tiktoken encodings during the build, starts `overcall.main:app`, and
+uses `/healthz` for the platform health check. It pins the service runtime to Python `3.11.15`,
+matching the local API virtual environment.
 
 Set these values in Render's environment settings; do not commit their values:
 
@@ -56,6 +57,7 @@ Set these values in Render's environment settings; do not commit their values:
 | `CORS_ORIGINS` | Exact deployed frontend origin(s), comma-separated; never `*` |
 | `PUBLIC_PROXY_BASE_URL` | Public API origin |
 | `ALLOW_REAL_UPSTREAM` | Set only after the production provider/traffic decision is authorized |
+| `TIKTOKEN_CACHE_DIR` | Leave as `.tiktoken` so build-warmed encodings are reused at runtime |
 
 `APP_ENV=production` and `PYTHON_VERSION=3.11.15` are non-secret Blueprint values. The current
 API verifies Supabase signing keys using the configured project issuer; do not add the legacy
@@ -82,6 +84,16 @@ Set these Vercel project environment variables for each applicable environment:
 | `VITE_AUTH_MODE` | `supabase` for a configured real-auth deployment |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase public/anonymous key only |
+
+To enable Google sign-in, set `VITE_AUTH_MODE=supabase` and configure the Supabase URL and
+anonymous key above. Create a Google OAuth client in Google Cloud, then enable Google under
+Supabase **Authentication → Providers** and enter that client's ID and secret. Add the Supabase
+OAuth callback URL shown in the provider setup to the Google OAuth client's authorized redirect
+URIs. In Supabase **Authentication → URL Configuration**, allow the app callback URL
+`https://<your-app-domain>/auth/callback` and, for local development, the exact origin in use:
+`http://localhost:5173/auth/callback` or `http://127.0.0.1:5173/auth/callback`. Google
+sign-in uses the Supabase OAuth flow and returns to `/auth/callback`; it is unavailable in
+demo auth mode.
 
 The Content Security Policy is intentionally not hardcoded here: its `connect-src` allowlist
 must match the actual API and Supabase origins selected for the deployment. Set and verify that

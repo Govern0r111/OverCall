@@ -100,12 +100,16 @@ class IssueRepository(BaseRepository):
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
-    async def list_for_run(self, run_id: UUID) -> list[Issue]:
-        statement = (
-            self.select_for_user(Issue)
-            .where(Issue.run_id == run_id)
-            .order_by(Issue.detected_at.desc(), Issue.id.desc())
-        )
+    async def list_for_run(
+        self,
+        run_id: UUID,
+        *,
+        is_demo_data: bool | None = None,
+    ) -> list[Issue]:
+        statement = self.select_for_user(Issue).where(Issue.run_id == run_id)
+        if is_demo_data is not None:
+            statement = statement.where(Issue.is_demo_data.is_(is_demo_data))
+        statement = statement.order_by(Issue.detected_at.desc(), Issue.id.desc())
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 

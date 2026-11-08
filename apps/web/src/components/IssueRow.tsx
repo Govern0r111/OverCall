@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { Issue } from "../lib/api";
@@ -13,7 +14,13 @@ const SEVERITY_BAR: Record<string, string> = {
   info: "bg-muted-foreground",
 };
 
-export const IssueRow = ({ issue, index, open, onToggle }: { issue: Issue; index: number; open?: boolean; onToggle?: () => void }) => {
+export const IssueRow = ({ issue, index, open, onToggle, issueHref }: {
+  issue: Issue;
+  index: number;
+  open?: boolean;
+  onToggle?: () => void;
+  issueHref?: string;
+}) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const expanded = open ?? internalOpen;
   const toggle = onToggle ?? (() => setInternalOpen((current) => !current));
@@ -25,7 +32,7 @@ export const IssueRow = ({ issue, index, open, onToggle }: { issue: Issue; index
         onClick={toggle}
         aria-expanded={expanded}
         data-testid={`issue-row-expand-button-${index}`}
-        className="group flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-accent/50"
+        className="group flex w-full min-w-0 items-start gap-2 px-3 py-4 text-left transition-colors hover:bg-accent/50 sm:gap-4 sm:px-5 sm:py-5"
       >
         <span className={cn("mt-2 h-8 w-0.5 shrink-0 rounded-full", SEVERITY_BAR[issue.severity])} />
         <div className="min-w-0 flex-1">
@@ -33,11 +40,11 @@ export const IssueRow = ({ issue, index, open, onToggle }: { issue: Issue; index
             <SeverityBadge severity={issue.severity} testId={`issue-severity-${index}`} />
             <span className="text-sm font-medium">{issue.title}</span>
           </div>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{issue.summary}</p>
+          <p className="mt-2 max-w-3xl break-words text-sm leading-relaxed text-muted-foreground">{issue.summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
             <span>{PROVIDER_NAME[issue.provider]}</span>
             <span className="text-divider">·</span>
-            <span className="font-mono">{issue.endpoint}</span>
+            <span className="break-all font-mono">{issue.endpoint}</span>
             <span className="text-divider">·</span>
             <span className="font-mono">{formatInt(issue.affected_count)} requests</span>
             <TierBadge tier={issue.tier} confidence={issue.experimental ? issue.confidence : undefined} testId={`issue-tier-${index}`} />
@@ -50,9 +57,20 @@ export const IssueRow = ({ issue, index, open, onToggle }: { issue: Issue; index
           </div>
           <div className="mt-1 text-xs text-muted-foreground">projected</div>
         </div>
-        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:text-foreground", expanded && "rotate-180")} />
+        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none group-hover:text-foreground", expanded && "rotate-180")} />
       </button>
-      <div className={cn("grid transition-[grid-template-rows] duration-200 ease-out", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+      {issueHref && (
+        <div className="-mt-2 flex justify-end px-5 pb-4">
+          <Link
+            to={issueHref}
+            aria-label={`View in Issues: ${issue.title}`}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            View in Issues
+          </Link>
+        </div>
+      )}
+      <div className={cn("grid motion-safe:transition-[grid-template-rows] motion-reduce:transition-none duration-200 ease-out", expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div className="overflow-hidden">{expanded && <IssueDetail issue={issue} index={index} />}</div>
       </div>
     </li>

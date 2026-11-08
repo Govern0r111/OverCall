@@ -11,5 +11,12 @@ are defined by `synthetic-log.schema.json` and
 python -m overcall.synthetic --seed 42 --days 7 --size small --out ../../contract/fixtures/synthetic/small
 ```
 
+`openapi.yaml` is JSON-compatible YAML. API response schemas use standard
+OpenAPI `content` definitions and are the input for the generated web types:
+
+```powershell
+npm --prefix apps/web run gen:api
+```
+
 Ground-truth labels are for offline evaluation only and must never be stored
 with request logs.

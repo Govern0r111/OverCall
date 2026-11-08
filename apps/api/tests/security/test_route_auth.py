@@ -61,6 +61,7 @@ def test_every_v1_operation_rejects_a_missing_token(client: TestClient) -> None:
         ("DELETE", "/v1/demo", None),
         ("DELETE", "/v1/data", {"confirm": "delete my data"}),
     ]
+    client.app.state.settings.rate_limit_auth_ip_rpm = len(checks)
 
     for method, path, body in checks:
         response = client.request(method, path, json=body)

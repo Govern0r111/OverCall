@@ -6,10 +6,11 @@ from __future__ import annotations
 import json
 import secrets
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
@@ -18,14 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .api_schemas import (
     RULE_IDS,
-    AccuracyDataset,
-    AccuracyResponse,
     AccuracyRule,
     DeleteData,
     DemoLoad,
-    DemoLoadResponse,
     DetectionRunResponse,
     DetectionRunSummary,
+    ErrorResponse,
     FacetValue,
     IngestKeyCreate,
     IngestKeyCreatedResponse,
@@ -75,7 +74,6 @@ from .pagination import (
 from .pricing import DEFAULT_PRICING_BOOK
 from .rules import RULES
 from .rules.base import RuleContext
-from .synthetic import generate
 from .synthetic.truth import GroundTruth
 
 router = APIRouter(prefix="/v1", dependencies=[Depends(get_current_user)])
@@ -148,6 +146,43 @@ def _window_days(logs: list[LegacyLog]) -> float:
     return max(1.0, (logs[-1].timestamp - logs[0].timestamp).total_seconds() / 86400)
 
 
+def _synthetic_accuracy(
+    logs: list[LegacyLog], truth: GroundTruth
+) -> list[AccuracyRule]:
+    context = RuleContext(w=_DEFAULT_THRESHOLDS, window_days=_window_days(logs))
+    results = []
+    for rule in RULES:
+        flagged: set[str] = set()
+        for finding in rule.detect(logs, context):
+            flagged.update(finding.waste_by_request)
+        positives = truth.request_ids(rule.id)
+        hard_negatives = truth.request_ids(rule.id, "hard_negative")
+        true_positives = len(flagged & positives)
+        results.append(
+            AccuracyRule(
+                rule_id=rule.id,
+                tier=rule.tier,
+                positives=len(positives),
+                flagged=len(flagged),
+                true_positives=true_positives,
+                precision=(
+                    true_positives / len(flagged)
+                    if flagged
+                    else (1.0 if not positives else 0.0)
+                ),
+                recall=true_positives / len(positives) if positives else 1.0,
+                false_positives_on_hard_negatives=len(flagged & hard_negatives),
+            )
+        )
+    return results
+
+
+def _rule_enabled_for_detection(rule: Any, settings: UserSettings) -> bool:
+    return (settings.rules_enabled or {}).get(rule.id, True) and (
+        rule.tier != 3 or settings.tier3_enabled
+    )
+
+
 def _api_detection_status(status: str) -> Literal["running", "completed", "failed"]:
     if status == "running":
         return "running"
@@ -156,6 +191,39 @@ def _api_detection_status(status: str) -> Literal["running", "completed", "faile
     if status == "failed":
         return "failed"
     raise ValueError(f"Unexpected persisted detection run status: {status}")
+
+
+@dataclass(slots=True)
+class _FindingTotals:
+    spend_by_request: dict[str, float]
+    experimental_by_request: dict[str, float]
+    reliability_overhead_by_request: dict[str, float]
+    reliability_count: int
+
+
+def _aggregate_finding_totals(findings: list[tuple[Any, Any]]) -> _FindingTotals:
+    spend_by_request: dict[str, float] = {}
+    experimental_by_request: dict[str, float] = {}
+    reliability_overhead_by_request: dict[str, float] = {}
+    reliability_count = 0
+
+    for rule, finding in findings:
+        if finding.impact_kind == "reliability":
+            target = reliability_overhead_by_request
+            reliability_count += 1
+        elif rule.tier == 3:
+            target = experimental_by_request
+        else:
+            target = spend_by_request
+        for request_id, waste in finding.waste_by_request.items():
+            target[request_id] = max(target.get(request_id, 0.0), waste)
+
+    return _FindingTotals(
+        spend_by_request=spend_by_request,
+        experimental_by_request=experimental_by_request,
+        reliability_overhead_by_request=reliability_overhead_by_request,
+        reliability_count=reliability_count,
+    )
 
 
 async def _perform_detection(
@@ -182,7 +250,12 @@ async def _perform_detection(
 
     settings = await _settings(session, user_id)
     thresholds = Thresholds.model_validate(settings.thresholds or {})
-    rows = await log_repo.list_window(now - timedelta(days=30), now, limit=200_000)
+    rows = await log_repo.list_window(
+        now - timedelta(days=30),
+        now,
+        source="proxy",
+        limit=200_000,
+    )
     logs = [_to_legacy_log(row) for row in rows]
     days = _window_days(logs)
     run.is_demo_data = bool(rows) and all(row.source == "demo" for row in rows)
@@ -195,19 +268,15 @@ async def _perform_detection(
     context = RuleContext(w=thresholds, window_days=days)
     findings: list[tuple[Any, Any]] = []
     for rule in RULES:
-        if not (settings.rules_enabled or {}).get(rule.id, True):
-            continue
-        if rule.tier == 3 and not settings.tier3_enabled:
+        if not _rule_enabled_for_detection(rule, settings):
             continue
         findings.extend((rule, finding) for finding in rule.detect(logs, context))
 
-    await issue_repo.delete_all()
-    trusted_waste: dict[str, float] = {}
-    experimental_waste: dict[str, float] = {}
+    totals = _aggregate_finding_totals(findings)
+    await issue_repo.delete_for_source("proxy")
     severity_counts = {"critical": 0, "warning": 0, "info": 0}
     for rule, finding in findings:
         issue_id = uuid4()
-        impact_kind = "reliability" if finding.issue_type == "reliability" else "spend"
         issue = Issue(
             id=issue_id,
             user_id=user_id,
@@ -218,7 +287,7 @@ async def _perform_detection(
             provider=finding.provider,
             endpoint=finding.endpoint,
             severity=finding.severity,
-            impact_kind=impact_kind,
+            impact_kind=finding.impact_kind,
             title=finding.title,
             summary=finding.summary,
             explanation=finding.explanation,
@@ -248,26 +317,28 @@ async def _perform_detection(
                     waste_usd=Decimal(str(waste)),
                 )
             )
-            target = experimental_waste if rule.tier == 3 else trusted_waste
-            target[legacy_log.id] = max(target.get(legacy_log.id, 0.0), waste)
 
     by_day: dict[str, dict[str, float]] = defaultdict(lambda: {"spend_usd": 0.0, "waste_usd": 0.0})
     log_by_id = {str(row.id): row for row in rows}
     for row in rows:
         by_day[row.occurred_at.date().isoformat()]["spend_usd"] += float(row.cost_usd)
-    for request_id, waste in trusted_waste.items():
+    for request_id, waste in totals.spend_by_request.items():
         row = log_by_id.get(request_id)
         if row is not None:
             by_day[row.occurred_at.date().isoformat()]["waste_usd"] += waste
 
-    run.flagged_request_count = len(trusted_waste)
-    run.spend_savings_window_usd = Decimal(str(round(sum(trusted_waste.values()), 6)))
-    run.spend_savings_monthly_usd = Decimal(str(round(sum(trusted_waste.values()) * 30 / days, 6)))
-    run.experimental_monthly_usd = Decimal(
-        str(round(sum(experimental_waste.values()) * 30 / days, 6))
+    run.flagged_request_count = len(totals.spend_by_request)
+    run.spend_savings_window_usd = Decimal(str(round(sum(totals.spend_by_request.values()), 6)))
+    run.spend_savings_monthly_usd = Decimal(
+        str(round(sum(totals.spend_by_request.values()) * 30 / days, 6))
     )
-    run.reliability_count = sum(1 for _, finding in findings if finding.issue_type == "reliability")
-    run.reliability_overhead_monthly_usd = Decimal("0")
+    run.experimental_monthly_usd = Decimal(
+        str(round(sum(totals.experimental_by_request.values()) * 30 / days, 6))
+    )
+    run.reliability_count = totals.reliability_count
+    run.reliability_overhead_monthly_usd = Decimal(
+        str(round(sum(totals.reliability_overhead_by_request.values()) * 30 / days, 6))
+    )
     run.issue_counts = severity_counts
     run.trend = [{"date": date, **values} for date, values in sorted(by_day.items())]
     run.projection_low_confidence = len(rows) < 10
@@ -300,7 +371,7 @@ async def _schedule_detection(
     background_tasks: BackgroundTasks | None = None,
 ) -> DetectionRun | None:
     repo = RequestLogRepository(session, user_id)
-    if await repo.count() <= 20_000:
+    if await repo.count(source="proxy") <= 20_000:
         return await _perform_detection(session, user_id)
     now = datetime.now(UTC)
     run = DetectionRun(
@@ -331,6 +402,7 @@ async def _issue_response(session: AsyncSession, user_id: UUID, issue: Issue) ->
             IssueRequest.user_id == user_id,
             IssueRequest.issue_id == issue.id,
             RequestLog.user_id == user_id,
+            RequestLog.source == "proxy",
         )
         .order_by(RequestLog.occurred_at.desc(), RequestLog.id.desc())
         .limit(5)
@@ -379,6 +451,7 @@ async def _log_response(session: AsyncSession, user_id: UUID, log: RequestLog) -
             IssueRequest.request_id == log.id,
             IssueRequest.user_id == user_id,
             Issue.user_id == user_id,
+            Issue.is_demo_data.is_(False),
         )
         .order_by(Issue.severity, Issue.id)
     )
@@ -446,12 +519,12 @@ async def get_me(
     logs = RequestLogRepository(session, user.user_id)
     settings = await _settings(session, user.user_id)
     await session.commit()
-    total_logs = await logs.count()
     proxy_count = await logs.count(source="proxy")
-    demo_count = await logs.count(source="demo")
-    latest = await logs.list_logs(limit=1)
+    latest = await logs.list_logs(limit=1, source="proxy")
     issue_count_result = await session.execute(
-        select(func.count()).select_from(Issue).where(Issue.user_id == user.user_id)
+        select(func.count())
+        .select_from(Issue)
+        .where(Issue.user_id == user.user_id, Issue.is_demo_data.is_(False))
     )
     issue_count = int(issue_count_result.scalar_one())
     key_count_result = await session.execute(
@@ -464,8 +537,6 @@ async def get_me(
         proxy_status = "receiving_traffic"
     elif key_count:
         proxy_status = "waiting_for_traffic"
-    elif demo_count and not proxy_count:
-        proxy_status = "demo_only"
     else:
         proxy_status = "no_key"
     app_settings = getattr(session, "info", {}).get("app_settings")
@@ -476,8 +547,8 @@ async def get_me(
         proxy_status=proxy_status,
         last_request_at=latest[0].occurred_at if latest else None,
         issue_count=issue_count,
-        is_demo_data=bool(demo_count and not proxy_count),
-        has_data=bool(total_logs),
+        is_demo_data=False,
+        has_data=bool(proxy_count),
         real_upstream_available=bool(app_settings and app_settings.allow_real_upstream),
     )
 
@@ -487,7 +558,7 @@ async def get_overview(
     user: UserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> OverviewResponse:
-    run = await DetectionRunRepository(session, user.user_id).latest()
+    run = await DetectionRunRepository(session, user.user_id).latest(is_demo_data=False)
     if run is None:
         return OverviewResponse(
             has_data=False,
@@ -507,7 +578,7 @@ async def get_overview(
             top_issues=[],
         )
     issue_repo = IssueRepository(session, user.user_id)
-    issues = await issue_repo.list_for_run(run.id)
+    issues = await issue_repo.list_for_run(run.id, is_demo_data=False)
     issues.sort(
         key=lambda item: (
             {"critical": 0, "warning": 1, "info": 2}.get(item.severity, 3),
@@ -518,9 +589,8 @@ async def get_overview(
     )
     start = run.window_start or run.started_at - timedelta(days=1)
     end = run.window_end or run.started_at
-    source = "demo" if run.is_demo_data else "proxy"
     logs = await RequestLogRepository(session, user.user_id).list_window(
-        start, end, source=source, limit=200_000
+        start, end, source="proxy", limit=200_000
     )
     by_provider: dict[str, dict[str, Any]] = {}
     for log in logs:
@@ -601,6 +671,7 @@ async def list_issues(
         severity=severity,
         tier=tier,
         impact_kind=impact_kind,
+        is_demo_data=False,
         include_experimental=include_tier3,
     )
     has_more = len(rows) > limit
@@ -629,7 +700,7 @@ async def get_issue(
 ) -> IssueResponse:
     repo = IssueRepository(session, user.user_id)
     issue = await repo.get(issue_id)
-    if issue is None:
+    if issue is None or issue.is_demo_data:
         raise OvercallError("not_found", 404, "The requested issue was not found.")
     if issue.tier == 3 and not (await _settings(session, user.user_id)).tier3_enabled:
         raise OvercallError("not_found", 404, "The requested issue was not found.")
@@ -674,6 +745,7 @@ async def list_logs(
         status_class=status_class,
         issue_id=issue_id,
         model=model,
+        source="proxy",
     )
     has_more = len(rows) > limit
     rows = rows[:limit]
@@ -691,28 +763,36 @@ async def log_facets(
 ) -> LogFacets:
     providers_result = await session.execute(
         select(RequestLog.provider)
-        .where(RequestLog.user_id == user.user_id)
+        .where(RequestLog.user_id == user.user_id, RequestLog.source == "proxy")
         .distinct()
         .order_by(RequestLog.provider)
         .limit(100)
     )
     callers_result = await session.execute(
         select(RequestLog.caller)
-        .where(RequestLog.user_id == user.user_id, RequestLog.caller.is_not(None))
+        .where(
+            RequestLog.user_id == user.user_id,
+            RequestLog.source == "proxy",
+            RequestLog.caller.is_not(None),
+        )
         .distinct()
         .order_by(RequestLog.caller)
         .limit(100)
     )
     models_result = await session.execute(
         select(RequestLog.model)
-        .where(RequestLog.user_id == user.user_id, RequestLog.model.is_not(None))
+        .where(
+            RequestLog.user_id == user.user_id,
+            RequestLog.source == "proxy",
+            RequestLog.model.is_not(None),
+        )
         .distinct()
         .order_by(RequestLog.model)
         .limit(100)
     )
     endpoints_result = await session.execute(
         select(RequestLog.endpoint, func.count().label("count"))
-        .where(RequestLog.user_id == user.user_id)
+        .where(RequestLog.user_id == user.user_id, RequestLog.source == "proxy")
         .group_by(RequestLog.endpoint)
         .order_by(func.count().desc(), RequestLog.endpoint)
         .limit(100)
@@ -732,7 +812,7 @@ async def get_log(
     session: AsyncSession = Depends(get_db_session),
 ) -> LogEntry:
     log = await RequestLogRepository(session, user.user_id).get(log_id)
-    if log is None:
+    if log is None or log.source != "proxy":
         raise OvercallError("not_found", 404, "The requested log was not found.")
     return await _log_response(session, user.user_id, log)
 
@@ -832,76 +912,81 @@ def _snippets(provider: str, base_url: str) -> list[dict[str, str]]:
     routes_file = _ROOT / "contract" / "fixtures" / "proxy" / "routes.json"
     try:
         routes = json.loads(routes_file.read_text(encoding="utf-8"))[provider]
-    except (OSError, KeyError, json.JSONDecodeError):
-        return []
+    except (OSError, KeyError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Could not load proxy route snippets for provider {provider!r}."
+        ) from exc
+
     snippets = []
     for sample in routes:
-        path = sample["path"]
         method = sample["method"]
-        url = f"{base_url}{path}"
+        url = f"{base_url}{sample['path']}"
         if provider == "stripe":
-            auth_curl = "-u '<stripe-test-key>:'"
-            auth_python = "auth=(provider_key, ''), headers={'X-Overcall-Key': 'YOUR_OVERCALL_KEY'}"
-            auth_node = (
-                "Authorization: 'Basic ' + "
-                "Buffer.from(providerKey + ':').toString('base64'), "
-                "'X-Overcall-Key': 'YOUR_OVERCALL_KEY'"
+            auth_curl = '-u "$STRIPE_TEST_KEY:"'
+            auth_python = (
+                'auth=(os.environ["STRIPE_TEST_KEY"], ""), '
+                'headers={"X-Overcall-Key": "YOUR_OVERCALL_KEY"}'
             )
+            auth_node = (
+                "'Authorization': 'Basic ' + "
+                "Buffer.from(process.env.STRIPE_TEST_KEY + ':').toString('base64')"
+            )
+            body_curl = ""
+            body_python = ""
+            body_node = ""
         else:
-            auth_curl = "-H 'Authorization: Bearer <provider-key>'"
+            auth_curl = '-H "Authorization: Bearer $OPENAI_API_KEY"'
             auth_python = (
-                "headers={'Authorization': f'Bearer {provider_key}', "
-                "'X-Overcall-Key': 'YOUR_OVERCALL_KEY'}"
+                'headers={"Authorization": f"Bearer {os.environ[\'OPENAI_API_KEY\']}", '
+                '"X-Overcall-Key": "YOUR_OVERCALL_KEY"}'
             )
             auth_node = (
-                "Authorization: 'Bearer ' + process.env.OPENAI_API_KEY, "
-                "'X-Overcall-Key': 'YOUR_OVERCALL_KEY'"
+                "'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, "
+                "'Content-Type': 'application/json'"
             )
-        if provider == "stripe":
-            auth_curl = "-u '<stripe-test-key>:'"
-            auth_python = (
-                "auth=('<stripe-test-key>', ''), headers={'X-Overcall-Key': 'YOUR_OVERCALL_KEY'}"
+            body_curl = (
+                " -H 'Content-Type: application/json' "
+                "--data '{\"model\":\"gpt-4o-mini\","
+                "\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}'"
             )
-            auth_node = (
-                "Authorization: 'Basic ' + btoa('<stripe-test-key>:'), "
-                "'X-Overcall-Key': 'YOUR_OVERCALL_KEY'"
+            body_python = (
+                ', json={"model": "gpt-4o-mini", '
+                '"messages": [{"role": "user", "content": "Hello"}]}'
             )
-        else:
-            auth_curl = "-H 'Authorization: Bearer <provider-key>'"
-            auth_python = (
-                "headers={'Authorization': 'Bearer <provider-key>', "
-                "'X-Overcall-Key': 'YOUR_OVERCALL_KEY'}"
-            )
-            auth_node = (
-                "Authorization: 'Bearer <provider-key>', 'X-Overcall-Key': 'YOUR_OVERCALL_KEY'"
+            body_node = (
+                ", body: JSON.stringify({ model: 'gpt-4o-mini', "
+                "messages: [{ role: 'user', content: 'Hello' }] })"
             )
         snippets.extend(
             [
                 {
                     "id": "curl",
-                    "label": "curl",
+                    "label": "cURL",
                     "code": (
                         f"curl -X {method} '{url}' {auth_curl} "
-                        "-H 'X-Overcall-Key: YOUR_OVERCALL_KEY'"
+                        f"-H 'X-Overcall-Key: YOUR_OVERCALL_KEY'{body_curl}"
                     ),
                 },
                 {
                     "id": "python",
                     "label": "Python",
-                    "code": (f"requests.request('{method}', '{url}', {auth_python})"),
+                    "code": (
+                        "import os\nimport requests\n\n"
+                        f"requests.request('{method}', '{url}', {auth_python}{body_python})"
+                    ),
                 },
                 {
                     "id": "node",
                     "label": "Node",
                     "code": (
-                        "await fetch("
-                        f"'{url}', {{ method: '{method}', headers: {{ {auth_node} }} }})"
+                        f"await fetch('{url}', {{ method: '{method}', headers: {{ {auth_node}, "
+                        "'X-Overcall-Key': 'YOUR_OVERCALL_KEY' }"
+                        f"{body_node} }})"
                     ),
                 },
             ]
         )
     return snippets
-
 
 @router.get("/providers", response_model=list[ProviderResponse])
 async def providers(
@@ -918,14 +1003,11 @@ async def providers(
     providers_result = []
     for provider, name in (("openai", "OpenAI"), ("stripe", "Stripe"), ("aws", "AWS")):
         proxy_count = await logs.count(source="proxy", provider=provider)
-        demo_count = await logs.count(source="demo", provider=provider)
         latest = await logs.list_logs(limit=1, source="proxy", provider=provider)
         if provider == "aws":
             status = "coming_soon"
         elif proxy_count:
             status = "receiving_traffic"
-        elif demo_count:
-            status = "demo_only"
         else:
             status = "waiting"
         providers_result.append(
@@ -939,7 +1021,7 @@ async def providers(
                 else _snippets(provider, f"{base_url}/proxy/{provider}/v1"),
                 traffic=dict(
                     proxy=proxy_count,
-                    demo=demo_count,
+                    demo=0,
                     last_request_at=latest[0].occurred_at if latest else None,
                 ),
                 upstream_mode=(
@@ -1079,121 +1161,36 @@ async def latest_detection_run(
     user: UserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> DetectionRunSummary:
-    run = await DetectionRunRepository(session, user.user_id).latest()
+    run = await DetectionRunRepository(session, user.user_id).latest(is_demo_data=False)
     if run is None:
         raise OvercallError("not_found", 404, "No detection run is available.")
     return _run_summary(run)
 
 
-def _synthetic_accuracy(logs: list[LegacyLog], truth: GroundTruth) -> list[AccuracyRule]:
-    windows = _DEFAULT_THRESHOLDS
-    context = RuleContext(w=windows, window_days=_window_days(logs))
-    results = []
-    for rule in RULES:
-        flagged: set[str] = set()
-        for finding in rule.detect(logs, context):
-            flagged.update(finding.waste_by_request)
-        positives = truth.request_ids(rule.id)
-        hard_negatives = truth.request_ids(rule.id, "hard_negative")
-        true_positives = len(flagged & positives)
-        results.append(
-            AccuracyRule(
-                rule_id=rule.id,
-                tier=rule.tier,
-                positives=len(positives),
-                flagged=len(flagged),
-                true_positives=true_positives,
-                precision=(
-                    true_positives / len(flagged) if flagged else (1.0 if not positives else 0.0)
-                ),
-                recall=true_positives / len(positives) if positives else 1.0,
-                false_positives_on_hard_negatives=len(flagged & hard_negatives),
-            )
-        )
-    return results
-
-
-@router.get("/accuracy", response_model=AccuracyResponse)
+@router.get("/accuracy", response_model=ErrorResponse, status_code=403)
 async def accuracy(
     user: UserContext = Depends(get_current_user),
-) -> AccuracyResponse:
+) -> NoReturn:
     del user
-    generated_logs, truth = generate(seed=42, days=7)
-    return AccuracyResponse(
-        datasets=[
-            AccuracyDataset(
-                id="synthetic",
-                label="Synthetic data (circular)",
-                note=(
-                    "Generated from the same rules, so high scores are expected and "
-                    "are not evidence of real accuracy."
-                ),
-                generated_at=datetime.now(UTC),
-                requests=len(generated_logs),
-                rules=_synthetic_accuracy(generated_logs, truth),
-            ),
-            AccuracyDataset(
-                id="real",
-                label="Real-traffic fixtures (hand-labelled)",
-                note="Not measured yet; real-traffic validation is not part of this dataset.",
-                generated_at=None,
-                requests=0,
-                rules=[],
-            ),
-        ]
+    raise OvercallError(
+        "forbidden",
+        403,
+        "Synthetic accuracy data is available only in the local demo mode.",
     )
 
-
-def _database_log(user_id: UUID, row: LegacyLog) -> RequestLog:
-    return RequestLog(
-        id=UUID(row.id),
-        user_id=user_id,
-        source="demo",
-        origin=row.origin,
-        occurred_at=row.timestamp,
-        provider=row.provider,
-        method=row.method,
-        endpoint=row.endpoint,
-        status=row.status,
-        latency_ms=row.latency_ms,
-        req_size=row.req_size,
-        resp_size=row.resp_size,
-        req_hash=row.req_hash,
-        model=row.model,
-        prompt_tokens=row.prompt_tokens,
-        completion_tokens=row.completion_tokens,
-        cached_prompt_tokens=row.cached_prompt_tokens,
-        tokens_estimated=row.tokens_estimated,
-        stream=row.stream,
-        context_hash=row.context_hash,
-        context_tokens=row.context_tokens,
-        uses_tools=row.uses_tools,
-        list_limit=row.list_limit,
-        items_returned=row.items_returned,
-        has_idempotency_key=row.has_idempotency_key,
-        caller=row.caller,
-        cost_usd=Decimal(str(row.cost_usd)),
-        cost_basis=row.cost_basis,
-        pricing_version=row.pricing_version,
-        error_code=row.error_code,
-    )
-
-
-@router.post("/demo/load", response_model=DemoLoadResponse)
+@router.post("/demo/load", response_model=ErrorResponse, status_code=403)
 async def load_demo(
     body: DemoLoad,
     background_tasks: BackgroundTasks,
     user: UserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-) -> DemoLoadResponse:
-    await IssueRepository(session, user.user_id).delete_for_source("demo")
-    await RequestLogRepository(session, user.user_id).delete_for_source("demo")
-    await DetectionRunRepository(session, user.user_id).delete_for_source("demo")
-    logs, _truth = generate(seed=body.seed, days=body.days)
-    session.add_all([_database_log(user.user_id, row) for row in logs])
-    await session.flush()
-    await _schedule_detection(session, user.user_id, background_tasks)
-    return DemoLoadResponse(inserted=len(logs))
+) -> NoReturn:
+    del body, background_tasks, user, session
+    raise OvercallError(
+        "forbidden",
+        403,
+        "Synthetic data is available only in the local demo mode.",
+    )
 
 
 @router.delete("/demo", status_code=204, response_class=Response)

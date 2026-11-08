@@ -11,7 +11,7 @@ const questions = [
   },
   {
     question: "Does using a proxy slow down my app?",
-    answer: "A proxy adds a step to each request. We measure the overhead and will publish those measurements; we do not promise a specific number before it is tested.",
+    answer: "In a local in-process benchmark of 200 requests through the mock OpenAI server, the proxy added 3.6 ms at p50 and 5.5 ms at p95. Real network and deployment conditions vary, so these are not production latency guarantees.",
   },
   {
     question: "What about Stripe?",

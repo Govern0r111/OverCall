@@ -1,0 +1,57 @@
+{
+  "has_data": true,
+  "is_demo_data": true,
+  "generated_at": "2026-11-07T08:30:00Z",
+  "run_id": "66666666-6666-4666-8666-666666666666",
+  "window": {
+    "start": "2026-10-31T08:30:00Z",
+    "end": "2026-11-07T08:30:00Z",
+    "days": 7,
+    "low_confidence_projection": true
+  },
+  "request_count": 84,
+  "flagged_request_count": 18,
+  "total_spend_usd": "56.42",
+  "spend_savings": {
+    "window_usd": "3.25",
+    "projected_monthly_usd": "13.90",
+    "percent_of_spend": 17.4
+  },
+  "experimental_spend_savings": {
+    "projected_monthly_usd": "2.10"
+  },
+  "reliability_findings": {
+    "count": 5,
+    "modelled_overhead_monthly_usd": "0.92"
+  },
+  "severity_breakdown": {
+    "critical": 1,
+    "warning": 2,
+    "info": 2
+  },
+  "by_provider": [
+    {
+      "provider": "openai",
+      "spend_usd": "55.90",
+      "issue_count": 3
+    },
+    {
+      "provider": "stripe",
+      "spend_usd": "0.52",
+      "issue_count": 2
+    }
+  ],
+  "trend": [
+    {
+      "date": "2026-11-01",
+      "spend_usd": "7.20",
+      "waste_usd": "0.42"
+    },
+    {
+      "date": "2026-11-07",
+      "spend_usd": "8.40",
+      "waste_usd": "0.55"
+    }
+  ],
+  "top_issues": []
+}

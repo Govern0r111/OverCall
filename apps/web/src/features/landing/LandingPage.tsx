@@ -14,8 +14,8 @@ export function LandingPage() {
       <Nav />
       <main id="main-content" tabIndex={-1}>
         <Hero />
-        <HowItWorks />
         <DashboardPreview />
+        <HowItWorks />
         <WhatWeCatch />
         <BetaNote />
         <Faq />

@@ -8,7 +8,6 @@ from .base import (
     group_by,
     is_ok,
     severity_for,
-    tier1_eligible,
 )
 
 FIXES = {
@@ -26,11 +25,12 @@ class MissingCache(Rule):
     name = "Missing caching"
     tier = 1
     description = "Idempotent requests (GET or deterministic POST) with identical payloads re-sent within the long window after a successful response."
+    threshold_keys = ("short_window_s", "long_window_s")
 
     def detect(self, logs, ctx):
         short, long_ = ctx.w.short_window_s, ctx.w.long_window_s
         flagged = []
-        candidates = [l for l in tier1_eligible(logs) if cacheable(l)]
+        candidates = [l for l in ctx.filter_logs(logs) if cacheable(l)]
         for group in group_by(candidates, lambda l: (l.provider, l.method, l.req_hash)).values():
             for prev, cur in zip(group, group[1:]):
                 if short < gap_s(prev, cur) <= long_ and is_ok(prev.status):

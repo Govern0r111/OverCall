@@ -1,0 +1,21 @@
+{
+  "budgets": {
+    "added_latency_p50_ms": 15.0,
+    "detection_duration_ms": 2000.0
+  },
+  "detection": {
+    "concurrent_proxy_requests": 3,
+    "duration_ms": 1802.6417000000947,
+    "rows": 100000
+  },
+  "generated_at": "2026-11-08T13:52:09.166587+00:00",
+  "proxy": {
+    "added_latency_p50_ms": 3.7093999999342486,
+    "added_latency_p95_ms": 6.584219997603211,
+    "mock_p50_ms": 2.798999998049112,
+    "mock_p95_ms": 4.296600000816394,
+    "proxy_p50_ms": 6.530300001031719,
+    "proxy_p95_ms": 8.92694000067422,
+    "requests": 25
+  }
+}

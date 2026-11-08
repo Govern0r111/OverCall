@@ -10,6 +10,8 @@ import {
 } from "./api";
 import type { ApiIssue, ApiLogEntry, ApiOverview, ApiSettings } from "./api";
 import { env } from "./env";
+import overviewDemo from "../../../../contract/fixtures/api/overview.demo.json";
+import overviewLive from "../../../../contract/fixtures/api/overview.live.json";
 
 describe("backend URL contract", () => {
   it("uses the versioned API base path", () => {
@@ -82,6 +84,40 @@ describe("backend URL contract", () => {
       is_demo_data: true,
       sample_requests: [{ id: issue.sample_requests[0].request_id, cost_usd: 0.02 }],
     });
+
+  });
+
+  it.each([
+    ["demo", overviewDemo, 13.9, 5, 0.92],
+    ["live", overviewLive, 32.14, 3, 0.42],
+  ] as const)(
+    "keeps %s spend savings and reliability figures separate",
+    (_label, fixture, spendSavings, reliabilityCount, modelledOverhead) => {
+      const mapped = fromApiOverview(fixture);
+
+      expect(mapped.projected_monthly_usd).toBe(spendSavings);
+      expect(mapped.reliability_count).toBe(reliabilityCount);
+      expect(mapped.reliability_overhead_monthly_usd).toBe(modelledOverhead);
+      expect(mapped.low_confidence_projection).toBe(fixture.window.low_confidence_projection);
+    },
+  );
+
+  it("normalizes invalid overview amounts before they reach the dashboard", () => {
+    const malformed = JSON.parse(JSON.stringify(overviewDemo)) as ApiOverview;
+    malformed.total_spend_usd = "NaN";
+    malformed.spend_savings.projected_monthly_usd = "NaN";
+    malformed.spend_savings.percent_of_spend = Number.NaN;
+    Reflect.set(malformed.reliability_findings, "count", Number.NaN);
+    Reflect.set(malformed.reliability_findings, "modelled_overhead_monthly_usd", null);
+
+    const mapped = fromApiOverview(malformed);
+
+    expect(mapped.total_cost_usd).toBe(0);
+    expect(mapped.projected_monthly_cost_usd).toBe(0);
+    expect(mapped.projected_monthly_usd).toBe(0);
+    expect(mapped.waste_pct).toBe(0);
+    expect(mapped.reliability_count).toBe(0);
+    expect(mapped.reliability_overhead_monthly_usd).toBe(0);
   });
 
   it("maps versioned log and settings DTOs without dropping backend settings", () => {

@@ -6,7 +6,7 @@ import pytest
 
 from overcall.api_schemas import Thresholds
 from overcall.models import RequestLog
-from overcall.rules.base import RuleContext
+from overcall.rules.base import RuleContext, eligible_logs
 from overcall.rules.duplicate_calls import DuplicateCalls
 from overcall.rules.missing_cache import MissingCache
 from overcall.rules.retry_storm import RetryStorm
@@ -57,6 +57,17 @@ def _flagged(rule_id: str, logs: list[RequestLog]) -> set[str]:
         for finding in RULES[rule_id].detect(logs, CONTEXT)
         for request_id in finding.waste_by_request
     }
+
+
+def test_eligible_logs_sort_fallback_keeps_only_supported_rows() -> None:
+    logs = [
+        _log("later", second=2),
+        _log("aws", second=0, provider="aws"),
+        _log("earlier", second=1),
+        _log("overcall", second=3, origin="overcall"),
+    ]
+
+    assert [row.id for row in eligible_logs(logs)] == ["earlier", "later"]
 
 
 @pytest.mark.parametrize(

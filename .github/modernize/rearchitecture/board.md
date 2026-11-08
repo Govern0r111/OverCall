@@ -42,7 +42,7 @@
 - ✅ t11 [backend] Complete ingest-key lifecycle and isolation (16:03:47Z→16:20:28Z, 16m 41s) [deps: t4]
 - ✅ t27 [devops] Reconcile deployment configuration locally (16:03:53Z→16:18:24Z, 14m 31s) — production checks remain open; npm advisories require t33 scan [deps: t4]
 
-### Phase: API and transport checks
+### Phase: API and transport checks 📌 6e8cbb9
 - ✅ t9 [backend] Verify atomic detection and Tier 1 rules (16:23:50Z→16:31:45Z, 7m 55s) [deps: t8]
 - ✅ t12 [backend] Verify versioned API isolation and fixtures (16:24:34Z→16:39:55Z, 15m 21s) [deps: t4, t11]
 - ✅ t14 [backend] Verify proxy metadata persistence and redaction (16:24:24Z→16:32:44Z, 8m 20s) [deps: t4, t11, t13]
@@ -51,10 +51,13 @@
 - ✅ t28.2 [devops] Remediate HIGH: add safe keep-alive workflow after endpoint is available (16:50:49Z→16:55:22Z, 4m 33s) [deps: t27, t28.1]
 
 ### Phase: Follow-on implementation checks
-- ⏳ t10 [backend] Verify shared rules and Tier 3 gates [deps: t8, t9]
-- ⏳ t15 [backend] Verify SSE pass-through and disconnect handling [deps: t13, t14]
-- ⏳ t16 [frontend] Verify repeatable frontend API type generation [deps: t12]
-- ⏳ t30 [backend] Verify retention and request caps [deps: t4, t14]
+- ✅ t10 [backend] Verify shared rules and Tier 3 gates (17:00:44Z→17:15:52Z, 15m 8s) — PostgreSQL tests skipped without TEST_DATABASE_URL; synthetic metrics do not establish real-traffic accuracy [deps: t8, t9]
+- ✅ t15 [backend] Verify SSE pass-through and disconnect handling (17:00:57Z→17:14:29Z, 13m 32s) — B9 usage parsing remains open; PostgreSQL disconnect logging and Render buffering unverified [deps: t13, t14]
+- ❌ failed[findings] t16 [frontend] Verify repeatable frontend API type generation (17:01:28Z→17:04:52Z, 3m 24s) — HIGH: 21 OpenAPI operations lack standard response schemas; generated response types are unusable [deps: t12]
+- ✅ t30 [backend] Verify retention and request caps (17:00:53Z→17:11:38Z, 10m 45s) — PostgreSQL purge/pg_cron and seven-day soak remain open; rate-limit and response-buffer caps deferred to t30.1 [deps: t4, t14]
+- 🔄 t15.1 [backend] Implement and verify final-chunk usage parsing and tiktoken cost estimation (dispatched 17:17:25Z) [deps: t13, t15]
+- 🔄 t16.1 [backend] Remediate HIGH: add standard response schemas for generated frontend API types (dispatched 17:17:25Z) [deps: t12]
+- 🔄 t30.1 [backend] Implement and verify bounded request rate and response-buffer caps (dispatched 17:17:25Z) [deps: t14, t30]
 
 ### Phase: Integration and module behavior
 - ⏳ t17 [frontend] Verify overview fixture and figure semantics [deps: t16]
@@ -64,7 +67,7 @@
 - ⏳ t22 [tester] Validate local browser-to-API integration [deps: t11, t12, t14, t15, t16]
 - ⏳ t24 [backend] Verify accuracy dataset and report provenance [deps: t8, t10, t16]
 - ⏳ t29 [backend] Fuzz redaction and measure proxy overhead [deps: t14, t15]
-- ⏳ t31 [tester] Run the seven-day synthetic traffic soak [deps: t30]
+- ⏳ t31 [tester] Run the seven-day synthetic traffic soak [deps: t30, t30.1]
 
 ### Phase: External and downstream gates
 - ⏳ t23 [tester] Check real-account mock-data isolation [deps: t22]
@@ -73,15 +76,15 @@
 
 ### Phase: Evaluation and dependency scan
 - ⏳ t26 [tester] Check authorized real-data evaluation gate [deps: t24, t25]
-- ⏳ t33 [backend] Scan changed dependency manifests via skill(cve-remediation) [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t32]
+- ⏳ t33 [backend] Scan changed dependency manifests via skill(cve-remediation) [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t30.1, t32]
 
 ### Phase: Security and local handoff
-- ⏳ t34 [tester] Collect per-module handoff evidence [deps: t4, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t32, t33]
-- ⏳ t36 [security] Audit implementation security posture [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t32, t33]
+- ⏳ t34 [tester] Collect per-module handoff evidence [deps: t4, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t30.1, t32, t33]
+- ⏳ t36 [security] Audit implementation security posture [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t30.1, t32, t33]
 
 ### Phase: Smoke and PR gates
 - ⏳ t35 [teamlead] Check module PR done-when list when PR exists [deps: t34]
-- ⏳ t37 [architect] Run independent full build and startup smoke test [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t32, t33, t34]
+- ⏳ t37 [architect] Run independent full build and startup smoke test [deps: t4, t6, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19, t20, t22, t24, t25, t27, t29, t30, t30.1, t32, t33, t34]
 
 ### Phase: Runtime validation
 - ⏳ t38 [tester] Run runtime and end-to-end validation [deps: t36, t37]

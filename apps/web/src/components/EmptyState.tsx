@@ -1,82 +1,80 @@
-import { Database, Loader2, ArrowRight, ShieldCheck, TrendingDown, Zap } from "lucide-react";
-import { Button } from "./ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { CopyField } from "./CopyField";
+import { Database, Loader2, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAppAuth } from "../auth/AuthContext";
 import { useLoadSynthetic } from "../hooks/queries";
-import { PROXY_URLS } from "../lib/api";
+import { Button } from "./ui/button";
 
-const SNIPPETS = {
-  openai: `from openai import OpenAI\n\nclient = OpenAI(base_url="${PROXY_URLS.openai}")`,
-  stripe: `import stripe\n\nstripe.api_key = "sk_test_..."\nstripe.api_base = "${PROXY_URLS.stripe}"`,
-};
+interface EmptyStateProps {
+  hasProxyTraffic?: boolean;
+  isAnalyzing?: boolean;
+  onAnalyze?: () => void;
+}
 
-const FEATURES = [
-  { icon: ShieldCheck, title: "Detect waste", desc: "7 rules across 3 tiers flag duplicate calls, retry storms, token bloat and more." },
-  { icon: TrendingDown, title: "Quantify savings", desc: "Every issue shows projected monthly savings in your currency." },
-  { icon: Zap, title: "Zero-code proxy", desc: "Point your SDK at the proxy URL — nothing else changes in your app." },
-];
-
-const Step = ({ n, title, children }: { n: number; title: string; children?: React.ReactNode }) => (
-  <li className="grid grid-cols-[28px_1fr] gap-3">
-    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-primary/30 bg-primary/[0.06] font-mono text-xs font-medium text-primary">{n}</span>
-    <div className="min-w-0 space-y-3">
-      <p className="pt-0.5 text-sm font-medium">{title}</p>
-      {children}
-    </div>
-  </li>
-);
-
-export const EmptyState = () => {
+export const EmptyState = ({
+  hasProxyTraffic = false,
+  isAnalyzing = false,
+  onAnalyze,
+}: EmptyStateProps) => {
+  const { isDemo } = useAppAuth();
   const load = useLoadSynthetic();
+
   return (
-    <section data-testid="empty-state" className="max-w-3xl rounded-lg border border-border bg-card p-8 lg:p-10">
-      <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg border border-primary/20 bg-primary/[0.06]">
-        <ShieldCheck className="h-6 w-6 text-primary" strokeWidth={1.5} />
+    <section
+      data-testid="empty-state"
+      className="mb-7 flex flex-col gap-5 rounded-lg border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+    >
+      <div className="flex min-w-0 items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/[0.06]">
+          <ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary" strokeWidth={1.5} />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold tracking-tight">
+            {hasProxyTraffic ? "Traffic is ready to analyze" : "Waiting for your first request"}
+          </h2>
+          <p className="mt-1 max-w-[64ch] text-sm leading-6 text-muted-foreground">
+            {hasProxyTraffic
+              ? "Your request metadata is flowing through Overcall. Run detection to review spend, reliability findings, and practical fixes."
+              : "Route real requests through an Overcall provider to see spend, reliability findings, and practical fixes. Request bodies are never shown."}
+          </p>
+        </div>
       </div>
-      <h2 className="text-2xl font-semibold tracking-tight">Nothing to show yet</h2>
-      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-        Once requests flow through Overcall, this page shows how much you could save each month, a daily cost trend,
-        and the most expensive wasteful patterns — each with a plain-language fix.
-      </p>
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        {FEATURES.map((f) => {
-          const Icon = f.icon;
-          return (
-            <div key={f.title} className="rounded-lg border border-border bg-background p-4">
-              <Icon className="h-5 w-5 text-primary" strokeWidth={1.5} />
-              <p className="mt-3 text-sm font-medium">{f.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
-            </div>
-          );
-        })}
-      </div>
-      <Tabs defaultValue="openai" className="mt-8">
-        <ol className="space-y-7">
-          <Step n={1} title="Copy your proxy URL">
-            <TabsList data-testid="empty-state-provider-tabs">
-              <TabsTrigger value="openai" data-testid="empty-state-tab-openai">OpenAI</TabsTrigger>
-              <TabsTrigger value="stripe" data-testid="empty-state-tab-stripe">Stripe (test mode)</TabsTrigger>
-            </TabsList>
-            {(["openai", "stripe"] as const).map((p) => (
-              <TabsContent key={p} value={p} className="mt-0 space-y-3">
-                <CopyField value={PROXY_URLS[p]} testId={p === "openai" ? "copy-proxy-url-button" : "copy-stripe-proxy-url-button"} />
-                <pre className="overflow-x-auto rounded-md border border-border bg-background p-4 font-mono text-xs leading-relaxed">{SNIPPETS[p]}</pre>
-              </TabsContent>
-            ))}
-          </Step>
-          <Step n={2} title="Use it as your SDK's base URL, then make a request as usual" />
-          <Step n={3} title="Come back here — requests appear within about 15 seconds" />
-        </ol>
-      </Tabs>
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-divider pt-6">
-        <p className="max-w-md text-sm text-muted-foreground">
-          No traffic handy? Load a realistic 7-day demo dataset with known waste patterns.
-        </p>
-        <Button data-testid="load-synthetic-data-button" onClick={() => load.mutate(42)} disabled={load.isPending} className="gap-2">
-          {load.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-          {load.isPending ? "Loading demo data…" : "Load synthetic data"}
-          {!load.isPending && <ArrowRight className="h-4 w-4" />}
-        </Button>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+        {hasProxyTraffic ? (
+          <Button
+            type="button"
+            size="sm"
+            data-testid="analyze-traffic-button"
+            onClick={onAnalyze}
+            disabled={isAnalyzing || !onAnalyze}
+            className="gap-2"
+          >
+            {isAnalyzing && (
+              <Loader2 aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin motion-reduce:hidden" />
+            )}
+            {isAnalyzing ? "Analyzing traffic…" : "Analyze traffic"}
+          </Button>
+        ) : (
+          <Button asChild size="sm">
+            <Link to="/app/providers">Set up a provider</Link>
+          </Button>
+        )}
+        {isDemo && (
+          <Button
+            data-testid="load-synthetic-data-button"
+            variant="outline"
+            size="sm"
+            onClick={() => load.mutate(42)}
+            disabled={load.isPending}
+            className="gap-2"
+          >
+            {load.isPending ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin motion-reduce:hidden" />
+            ) : (
+              <Database aria-hidden="true" className="h-4 w-4" />
+            )}
+            {load.isPending ? "Loading demo data…" : "Load demo data"}
+          </Button>
+        )}
       </div>
     </section>
   );

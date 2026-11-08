@@ -1,23 +1,30 @@
 import { ReactNode } from "react";
 import { cn } from "../../lib/utils";
 
-export const SettingsSection = ({ title, description, children, testId }: { title: string; description?: ReactNode; children: ReactNode; testId: string }) => (
-  <section data-testid={testId} className="grid gap-6 rounded-lg border border-border bg-card p-6 lg:grid-cols-[260px_1fr] lg:gap-10">
+export const SettingsSection = ({ title, description, children, testId }: { title: string; description?: ReactNode; children: ReactNode; testId: string }) => {
+  const headingId = `settings-section-title-${testId}`;
+  return (
+  <section
+    data-testid={testId}
+    aria-labelledby={headingId}
+    className="grid gap-4 border-t border-divider py-6 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.7fr)] lg:gap-10"
+  >
     <div>
-      <h2 className="text-sm font-medium">{title}</h2>
-      {description && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>}
+      <h2 id={headingId} className="text-base font-semibold tracking-tight">{title}</h2>
+      {description && <p className="mt-2 max-w-[34ch] text-sm leading-6 text-muted-foreground">{description}</p>}
     </div>
     <div className="min-w-0">{children}</div>
   </section>
-);
+  );
+};
 
 export const SettingRow = ({ label, help, control, className }: { label: ReactNode; help?: ReactNode; control: ReactNode; className?: string }) => (
-  <div className={cn("flex items-start justify-between gap-6 border-b border-divider py-4 first:pt-0 last:border-b-0 last:pb-0", className)}>
+  <div className={cn("grid min-w-0 grid-cols-1 gap-3 border-b border-divider py-5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start", className)}>
     <div className="min-w-0">
-      <div className="text-sm">{label}</div>
-      {help && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{help}</p>}
+      <div className="text-sm font-medium">{label}</div>
+      {help && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-muted-foreground">{help}</p>}
     </div>
-    <div className="shrink-0">{control}</div>
+    <div className="min-w-0 sm:justify-self-end">{control}</div>
   </div>
 );
 

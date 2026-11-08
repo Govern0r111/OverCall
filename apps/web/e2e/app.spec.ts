@@ -15,7 +15,7 @@ test.describe("demo app shell", () => {
       const url = new URL(request.url());
       if (url.origin === "http://localhost:8000") backendRequests.push(request.url());
       if (
-        url.origin === "http://127.0.0.1:4173" &&
+        url.hostname === "127.0.0.1" &&
         (url.pathname.startsWith("/api/") || url.pathname.startsWith("/v1/"))
       ) {
         apiPaths.push(url.pathname);
@@ -44,7 +44,7 @@ test.describe("demo app shell", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/app");
     await page.getByRole("button", { name: "Open navigation menu" }).click();
-    const issuesLink = page.getByTestId("nav-issues-link");
+    const issuesLink = page.getByTestId("sidebar-mobile").getByTestId("nav-issues-link");
     await expect(issuesLink).toBeVisible();
     await issuesLink.click();
     await expect(page).toHaveURL(/\/app\/issues/);
@@ -52,13 +52,27 @@ test.describe("demo app shell", () => {
     await expect(page.getByRole("button", { name: "Open navigation menu" })).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("renders provider setup snippets and states that ingest-key management is unavailable", async ({ page }) => {
+  test("opens Profile, shows the demo account, and signs out", async ({ page }) => {
+    await page.goto("/app/profile");
+    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+    await expect(page.getByText("demo@overcall.local")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Reset password" })).toHaveAttribute("href", "/forgot");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  });
+
+  test("renders provider setup snippets and ingest-key management", async ({ page }) => {
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/app/providers");
     await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
-    await expect(page.getByText(/does not provide ingest-key creation/i).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overcall ingest keys" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create ingest key" })).toBeVisible();
     await expect(page.getByText(/YOUR_OPENAI_API_KEY/)).toHaveCount(0);
-    await expect(page.locator("pre code").first()).toContainText("$OPENAI_API_KEY");
+    const openaiCard = page.getByTestId("provider-card-openai");
+    await openaiCard.getByRole("tab", { name: "Python" }).click();
+    await expect(openaiCard.getByRole("textbox", { name: "OpenAI Python setup snippet" }))
+      .toHaveValue(/OPENAI_API_KEY/);
     await expect(page.getByTestId("provider-status-aws")).toContainText("Coming soon");
 
     const proxyUrl = await page.getByTestId("provider-openai-copy-url-button-value").textContent();
@@ -103,7 +117,40 @@ test("logs show an error instead of fabricated rows when the API fails", async (
   await page.goto("/app/logs?scenario=error");
   await expect(page.getByRole("heading", { name: "Logs" })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("No sample data is being shown");
-  await expect(page.getByText("/v1/chat/completions")).toHaveCount(0);
+  await expect(page.getByTestId("desktop-log-results").locator("tbody tr")).toHaveCount(0);
+  await expect(page.getByTestId("mobile-log-results").getByRole("listitem")).toHaveCount(0);
+});
+
+test("keeps overview, issues, and logs within a 320px viewport", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("overcall-mock-session", JSON.stringify({ email: "demo@overcall.local" }));
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+
+  for (const [path, title] of [["/app", "Overview"], ["/app/issues", "Issues"], ["/app/logs", "Logs"]]) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    const dimensions = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.document, `${path} must not create page-level horizontal overflow`).toBeLessThanOrEqual(dimensions.viewport);
+  }
+});
+
+test("shows compact log rows on mobile and opens their full metadata", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("overcall-mock-session", JSON.stringify({ email: "demo@overcall.local" }));
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/app/logs");
+
+  const mobileRows = page.getByTestId("mobile-log-results");
+  await expect(mobileRows).toBeVisible();
+  await expect(mobileRows).toContainText("/v1/chat/completions");
+  await expect.poll(async () => Math.round(await mobileRows.getByRole("listitem").first().evaluate((element) => element.getBoundingClientRect().height))).toBe(56);
+  await mobileRows.getByRole("button", { name: /Open metadata for openai/ }).first().click();
+  await expect(page.getByRole("dialog", { name: "Request metadata" })).toContainText("Request ID");
 });
 
 test("issue filters and expanded rows are shareable and sample metadata is allowlisted", async ({ page }) => {
@@ -155,7 +202,7 @@ test("signed-in dashboard consumes versioned responses across the overview-to-lo
 
   await page.goto("/app");
   await expect(page.getByTestId("hero-projected-savings")).toContainText("₹");
-  await page.getByTestId("nav-issues-link").click();
+  await page.getByTestId("sidebar").getByTestId("nav-issues-link").click();
   const issueRow = page.getByTestId("issue-row-expand-button-0");
   await issueRow.focus();
   await page.keyboard.press("Enter");
@@ -169,7 +216,7 @@ test("signed-in dashboard consumes versioned responses across the overview-to-lo
   ]);
   await page.goto("/app/logs?issue=11111111-1111-4111-8111-111111111111");
   await expect(page).toHaveURL(/\/app\/logs\?issue=11111111-1111-4111-8111-111111111111/);
-  await expect(page.getByText("/v1/chat/completions")).toBeVisible();
+  await expect(page.getByTestId("desktop-log-results").getByText("/v1/chat/completions")).toBeVisible();
 });
 
 test("settings validate thresholds and confirm real upstream and data deletion", async ({ page }) => {
@@ -208,21 +255,42 @@ test("settings validate thresholds and confirm real upstream and data deletion",
   await expect(page.getByText("Real-traffic fixtures")).toBeVisible();
   await expect(page.getByText(/Not measured yet/)).toBeVisible();
 
+  await page.getByTestId("nav-logs-link").click();
+  await expect(page.getByTestId("desktop-log-results").locator("tbody tr")).toHaveCount(0);
   await page.getByTestId("nav-overview-link").click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByTestId("empty-state")).toBeVisible();
   await page.getByTestId("load-synthetic-data-button").click();
   await expect(page.getByTestId("hero-savings-card")).toBeVisible();
+  await page.getByTestId("nav-logs-link").click();
+  await expect(page.getByTestId("desktop-log-results").locator("tbody tr")).toHaveCount(3);
 });
 
-test("dashboard pages pass axe accessibility checks in the demo", async ({ page }) => {
+test("dashboard pages pass axe checks and reflow at supported widths and themes", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("overcall-mock-session", JSON.stringify({ email: "demo@overcall.local" }));
   });
-  for (const path of ["/app", "/app/issues", "/app/logs", "/app/providers", "/app/settings"]) {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations, `Accessibility violations on ${path}`).toEqual([]);
+  for (const theme of ["light", "dark"]) {
+    await page.addInitScript((preference) => {
+      localStorage.setItem("overcall-theme", preference);
+    }, theme);
+    for (const path of ["/app", "/app/issues", "/app/logs", "/app/providers", "/app/settings", "/app/profile"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      for (const width of [320, 390, 768, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        const hasHorizontalOverflow = await page.evaluate(
+          () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        );
+        expect(hasHorizontalOverflow, `Horizontal overflow on ${path} at ${width}px in ${theme} theme`).toBe(false);
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+      if (path === "/app") {
+        const trendChart = await page.getByTestId("trend-chart").boundingBox();
+        expect(trendChart?.height).toBeGreaterThan(0);
+      }
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations, `Accessibility violations on ${path} in ${theme} theme`).toEqual([]);
+    }
   }
 });

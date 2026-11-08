@@ -388,7 +388,7 @@ Base path `/v1`. Auth is the Supabase JWT unless stated. Every error uses §3.4.
 | `GET /healthz` | none | `200 {"status":"ok","release":"…"}`. No DB access (used to wake Render) |
 | `GET /readyz` | none | `200 {"status":"ok"}` after `select 1`. `503` with `error.code="not_ready"` otherwise (used by keep-alive) |
 | `GET /internal/db-size` | `Authorization: Bearer <INTERNAL_TOKEN>` | Operator-only (B11). Without a configured token or valid bearer token it returns `404`, so it is not discoverable. Returns `{"bytes":N,"limit_bytes":524288000,"percent":N}`. |
-| `POST /internal/purge` | Planned; not implemented | Operator-only (B11). |
+| `POST /internal/purge` | Implemented; local auth/session behavior verified (t30) | Operator-only (B11); PostgreSQL execution awaits a database-backed run. |
 
 #### Account and shell
 
@@ -786,9 +786,9 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 - [x] Every route renders a placeholder inside the shell and the mock data loads.
 - [x] Currency switch works everywhere through `useMoney()`.
 - [x] Unhandled requests fail the test run.
-- [ ] `npm run gen:api` produces no diff on a clean checkout.
+- [x] `npm run gen:api` produces no diff on a clean checkout.
 
-> **Blocked:** `contract/openapi.yaml` and the contract fixtures are absent, so deterministic API type generation cannot be added or verified. The frontend uses the checked-in `/api` contract instead.
+Verification note (2026-11-07): Added standard OpenAPI response `content` schemas and generated component schemas while preserving the contract's response-shape extensions. `npm run gen:api` ran twice with identical output; the contract response-schema test, backend drift check, and frontend typecheck pass.
 
 ### F4 — Overview dashboard · size M
 
@@ -816,12 +816,12 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** zero savings ("No waste found. Nice."). One trend point. Very large and very small values. NaN or null defences. Chart with all-zero waste. Locale grouping (lakh). Long endpoint names in top issues. Window shorter than a day.
 
 **Done when**
-- [ ] Page matches `overview.demo.json` in both themes.
+- [x] Page matches `overview.demo.json` in both themes.
 - [x] Empty state shows when there is no data.
-- [ ] The two figures are separate and never added.
+- [x] The two figures are separate and never added.
 - [x] Demo label always appears for demo data.
 
-> **Incomplete:** the planned overview fixtures and separate reliability figure are not provided by the current API, so fixture parity and figure separation remain unverified.
+Verification note (2026-11-07): Demo/live fixtures render with separate spend-savings and reliability figures; tests cover empty/demo states, low-confidence messaging, malformed amounts, and no combined total. The local Overview was reviewed in both themes and at mobile width; the currency switch changed the displayed amounts, the chart exposed an accessible data table, and axe reported no WCAG 2.2 A/AA violations. A fresh demo-browser click from a top issue navigated to Issues with the matching row expanded; non-finite chart tooltip values are normalized before formatting.
 
 ### F5 — Issues page · size M
 
@@ -849,9 +849,9 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 - [x] Filters combine correctly.
 - [x] A row expands and collapses with the keyboard.
 - [x] No request body is ever rendered.
-- [ ] Tier 3 is hidden unless enabled and always badged when shown.
+- [x] Tier 3 is hidden unless enabled and always badged when shown.
 
-> **Unverified:** the current API and demo fixtures contain no Tier 3 issue to exercise the enabled-and-badged state.
+Verification note (2026-11-07): A constructed Tier 3 issue test confirms the issue is hidden while experimental checks are disabled, and shown with an "Experimental · Confidence 70%" badge when enabled. Null confidence is displayed as "Confidence unknown"; the API and demo fixtures still contain no Tier 3 issue.
 
 ### F6 — Log Explorer · size M
 
@@ -875,11 +875,11 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Edge cases:** empty result. Search of fewer than 4 hash characters. Status 0 or odd codes. Missing `ttfb_ms`. Very long endpoint. Many callers or models in facets. Clock skew between `from` and `to`. Mobile horizontal scroll.
 
 **Done when**
-- [ ] You can find a specific request in a few seconds using search and filters (timed manually on the 5 000-row demo set).
+- [x] You can find a specific request in a few seconds using search and filters (timed manually on the 5 000-row demo set).
 - [x] The panel shows all metadata and links to flagging issues.
 - [x] Keyboard and screen-reader pass (`axe`).
 
-> **Backend limitation:** the current endpoint returns at most 200 recent logs and has no cursor pagination, facets, or per-log detail route; the 5,000-row timed criterion is not met.
+Verification note (2026-11-07): The existing cursor, facet, and detail routes are wired to URL-synced filters and infinite pagination; the previous backend-limitation note was stale. In the 5,000-row dev scenario, searching for the final request returned its single matching row in 354 ms. With 800 rows loaded, the table rendered 41 rows. The Logs page passed axe WCAG 2.2 A/AA with zero violations in both unfiltered and filtered states; focused page tests also cover pagination and retaining rows on a page-fetch error.
 
 ### F7 — Providers page · size S
 
@@ -887,7 +887,7 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 **Depends on:** nothing beyond fixtures.
 **Contract slice:** `GET /v1/providers`, `GET/POST /v1/ingest-keys`, `DELETE /v1/ingest-keys/{id}`, `fixtures/proxy/routes.json`.
 
-**Files:** `src/features/providers/{ProvidersPage,ProviderCard,SnippetTabs,PricingTable,IngestKeyCard,CreateKeyDialog,KeyList}.tsx` and tests.
+**Files:** `apps/web/src/pages/Providers.tsx`, `src/pages/Providers.test.tsx`, `src/hooks/queries.ts`, `src/mocks/{handlers,state}.ts`, `apps/api/overcall/v1_api.py`, `apps/api/tests/unit/test_provider_snippets.py`, and `contract/fixtures/proxy/routes.json`.
 
 **Tasks**
 1. One card per provider: OpenAI, Stripe, AWS. Each shows status, a copyable proxy URL, tabbed setup snippets, traffic count, and the pricing table version (expandable table).
@@ -898,14 +898,15 @@ Selection: `VITE_AUTH_MODE=mock | supabase` (default `mock` in dev and tests).
 
 **Tests:** every snippet's URL path matches `fixtures/proxy/routes.json`. Snippets contain the placeholder `YOUR_OVERCALL_KEY`, never a real key. The plaintext key is not in the DOM after the dialog closes and is not stored (state, storage or query cache). Copy works. Revoke needs confirmation. AWS has no error styling.
 
-**Edge cases:** clipboard API unavailable (select-all fallback). Sixth key (conflict message). Revoked key still listed with a muted state. Long key names.
+**Edge cases:** clipboard API unavailable (select-all fallback). Sixth key (conflict message). Revoked key remains listed with a visible status. Long key names.
 
 **Done when**
 - [x] Copy buttons work.
-- [ ] Each snippet matches the real proxy routes (shared route fixture).
-- [ ] The key is shown only once.
+- [x] Each snippet matches the real proxy routes (shared route fixture).
+- [x] The key is shown only once and is not retained in the query cache.
+- [x] Code snippets are keyboard accessible; the page passes axe WCAG 2.2 A/AA in light and dark themes.
 
-> **Backend limitation:** there is no shared proxy-route fixture or ingest-key API. Key management is explicitly reported as unavailable rather than simulated.
+Verification note (2026-11-07): Provider snippets and the API share `contract/fixtures/proxy/routes.json`; the API suite checks generated route paths and credential placeholders. Browser validation exercised keyboard snippet tabs, create/show-once/save/revoke, and axe WCAG 2.2 A/AA reported zero violations in both themes, including with a revoked key listed.
 
 ### F8 — Settings page · size M
 
@@ -1108,10 +1109,12 @@ class Rule(Protocol):
 **Done when**
 - [x] A rerun replaces issues atomically and never leaves a half state.
 - [x] Tier 1 rules pass their unit and hard-negative tests.
-- [ ] Evaluate reports precision and recall per rule on synthetic data.
-- [ ] Spend and reliability totals are kept apart in storage.
+- [x] Evaluate reports precision and recall per rule on synthetic data.
+- [x] Spend and reliability totals are kept apart in storage.
 
 **Verification note (2026-11-06):** A disposable local PostgreSQL integration test injects an issue-flush failure after the prior issue deletion and confirms the previous issue and run remain unchanged. Tier 1 unit tests cover duplicate-call, missing-cache, and retry-storm boundaries and hard negatives; all three detect their labeled positives in the small synthetic dataset without flagging its hard negatives. The rules now exclude `origin='overcall'` and `provider='aws'` inputs. See `.github/modernize/rearchitecture/artifacts/t9-backend.md`.
+
+**Additional verification (2026-11-08):** `validation/reports/synthetic.json` records per-rule precision and recall for 7,451 generated requests. `tests/unit/test_detection_totals.py` verifies spend, experimental savings, reliability count, and modelled reliability overhead remain separate in the stored run.
 
 ### B5 — Tier 2 and Tier 3 rules · size M
 
@@ -1134,9 +1137,11 @@ class Rule(Protocol):
 **Edge cases:** missing pricing entry for a model (skip with a note, never crash). `caller` null grouped as "unknown". Context hash collisions (documented, extremely unlikely). Savings above the call's own cost (clamped).
 
 **Done when**
-- [ ] All seven rules run behind one interface and respect thresholds from settings.
-- [ ] Tier 3 is gated and always carries a confidence.
-- [ ] Evaluate reports synthetic precision and recall per rule.
+- [x] All seven rules run behind one interface and respect thresholds from settings.
+- [x] Tier 3 is gated and always carries a confidence.
+- [x] Evaluate reports synthetic precision and recall per rule.
+
+Verification note (2026-11-06): All seven registered rules implement the shared `Rule` interface and use the shared eligibility filter, which removes `origin='overcall'` and `provider='aws'` rows and orders the remaining rows by `(timestamp, id)`. Tier 1 boundary tests and Tier 2/Tier 3 threshold tests pass. Tier 3 detection is disabled unless `tier3_enabled` is true; issue list and detail routes also require the setting, and both experimental rule findings carry confidence. The mounted `/v1/accuracy` evaluator reports per-rule metrics for the committed small synthetic inputs (seed 42, seven days): each rule reports precision 1.0, recall 1.0, and zero false positives on hard negatives. This is synthetic-only evidence, not real-traffic accuracy. See `.github/modernize/rearchitecture/artifacts/t10-backend.md`.
 
 ### B6 — REST API · size M
 
@@ -1188,8 +1193,8 @@ Verification note (2026-11-06): The generated OpenAPI drift check compares versi
 
 **Done when**
 - [x] The proxy can talk to it in-process with no network. (Verified `apps/api/tests/integration/test_proxy_persistence.py::test_proxy_reaches_mock_upstream_in_process`; the proxy uses `httpx.ASGITransport(app=mock_app)`, 2026-11-06.)
-- [ ] Streaming, errors and latency injection work.
-- [ ] It is unreachable from outside the process.
+- [x] Streaming, errors and latency injection work.
+- [x] It is unreachable from outside the process.
 
 ### B8 — Proxy core · size L
 
@@ -1250,9 +1255,13 @@ Verification note (2026-11-06): `test_ingest_key_create_list_use_and_revoke_life
 **Edge cases:** very long streams (completion text cap). Keep-alive comments. Unicode split across chunks. Missing `[DONE]`. `n > 1`. Error event mid-stream. HTTP/1.0 upstream. Backpressure from a slow client (bounded buffer).
 
 **Done when**
-- [ ] The client sees chunks as they arrive (no buffering).
-- [ ] Usage comes from the final chunk when available. Otherwise it is estimated and labelled so.
-- [ ] A disconnect never leaks a connection and still logs.
+- [x] The client sees chunks as they arrive (no buffering).
+- [x] Usage comes from the final chunk when available. Otherwise it is estimated and labelled so.
+- [x] A disconnect never leaks a connection and still logs.
+
+Verification note (2026-11-06): `test_proxy_streams_sse_chunks_as_received_and_closes_upstream` observed each ASGI body send before the next upstream chunk was read, and verified the upstream response headers/bytes, no-buffering headers, and metadata row. `test_proxy_detects_sse_from_response_content_type` confirmed the response content type selects streaming even without a streaming `Accept` request. `test_proxy_sse_client_disconnect_closes_upstream_and_logs_in_finally` and `test_proxy_sse_upstream_drop_closes_and_logs_partial_stream` verified closure and final log status/error codes. The stream log uses a fresh `AsyncSession` because the pinned FastAPI 0.115.12 tears down `yield` dependencies before sending a `StreamingResponse`; the session-factory boundary is covered with a test double. Docker was unavailable, so no PostgreSQL-backed disconnect write or Render/proxy buffering check is claimed. At that time, final-chunk usage extraction and tiktoken estimation were still open; they were completed and verified on 2026-11-08 below. See `.github/modernize/rearchitecture/artifacts/t15-backend.md`.
+
+**Additional verification (2026-11-08):** `test_proxy_sse_parser.py` and the proxy integration tests verify latest-event billed usage, estimated usage when absent, and usage labeling. `apps/api/scripts/warm_tiktoken.py` warmed both encodings from the build cache; the script was run successfully in a clean Python 3.13 environment. Docker/PostgreSQL and hosted Render streaming remain unverified.
 
 ### B10 — Auth and ingest keys · size M
 
@@ -1304,10 +1313,14 @@ Verification note (2026-11-06): `test_ingest_key_create_list_use_and_revoke_life
 **Edge cases:** the purge deleting millions of rows (batched, 5 000 at a time). Cron skipped while the project is paused. Internal endpoints without the token return 404, not 403, so they are not discoverable.
 
 **Done when**
-- [ ] The fuzz redaction test finds no leaked secret on any code path.
-- [ ] Proxy overhead is measured and recorded. The FAQ number (F1) is updated from it.
-- [ ] Retention and cap work. DB size stays within budget in a 7-day soak on synthetic traffic.
-- [ ] CI blocks secrets, vulnerable dependencies and contract drift.
+- [ ] The fuzz redaction test finds no leaked secret on any code path. **Local status:** a deterministic randomized corpus checks opaque URL-safe paths, encoded queries, authorization and caller headers, and malformed JSON bodies across successful proxying, upstream HTTP errors, connection failures, and request timeouts; assertions cover stored request-log/ingest-key output and captured logs. Oversized secret bodies are rejected without persistence or log leakage, and a streaming-disconnect test confirms credential-like caller labels are omitted. New regressions exposed password-bearing PostgreSQL and password-only Redis URIs in traceback/logging paths; URI user-info passwords are now redacted, with both tests passing. The exhaustive cross-product across every middleware/route failure path remains incomplete.
+- [x] Proxy overhead is measured and recorded. The FAQ number (F1) is updated from it.
+- [ ] Retention and cap work. DB size stays within budget in a 7-day soak on synthetic traffic. **Local status (2026-11-08):** bounded request-body rejection and the protected purge route pass unit/HTTP tests; the PostgreSQL purge integration test now passes against an isolated Docker Postgres database, and the full backend suite passes with PostgreSQL enabled (229 passed). The continuous 7-day soak and hosted `pg_cron` schedule/DB-size behavior remain unverified; keep this item open.
+- [x] CI blocks secrets, vulnerable dependencies and contract drift.
+
+**Verification note (2026-11-08):** The final 200-request in-process benchmark reports 3.64 ms p50 / 5.46 ms p95 added latency and 1,195 ms to evaluate 100,000 rows while proxy traffic ran; the landing FAQ reflects the rounded measurements. The backend test suite passes (214 passed, 8 database-dependent tests skipped). The local database initializer now applies every migration, including the retention purge function, and a unit test verifies migration ordering. The configured CI Ruff selection, dependency audit, legacy-dependency check, pricing-age check, and OpenAPI contract check pass. Full end-to-end redaction fuzzing, PostgreSQL-backed retention checks, and the 7-day soak remain open.
+
+**Follow-up local verification (2026-11-08):** The complete API suite passes against isolated PostgreSQL (229 passed); Ruff, `pip-audit`, the legacy-dependency guard, pricing-age check, and OpenAPI contract check pass. The web CI dependency audit reports zero vulnerabilities. The 25-request CI proxy benchmark reports 3.71 ms p50 / 6.58 ms p95 added latency and 1,803 ms for 100,000-row detection while proxying, within the recorded budgets. The redaction cross-path test matrix and seven-day/hosted retention checks remain open.
 
 ---
 
@@ -1319,7 +1332,7 @@ Verification note (2026-11-06): `test_ingest_key_create_list_use_and_revoke_life
 **Depends on:** F1–F8 and B1–B10 (B11 not required).
 **Contract slice:** all of §3.
 
-**Files:** `docker-compose.dev.yml` (Postgres plus optional local Supabase stack), `scripts/dev.ps1`, `apps/web/e2e/real-stack.spec.ts`, `.github/workflows/e2e.yml`, docs update in `README.md`.
+**Files:** `docker-compose.dev.yml` (Postgres plus optional local Supabase stack), `scripts/dev.ps1`, `apps/web/e2e-real/real-stack.spec.ts`, `apps/web/playwright.real.config.ts`, `apps/web/scripts/run-real-e2e.mjs`, `apps/api/scripts/seed_e2e_user.py`, `.github/workflows/e2e.yml`, docs update in `README.md`.
 
 **Tasks**
 1. One command (`scripts/dev.ps1`) starts the database, API and web with `VITE_API_MODE=real` and `VITE_AUTH_MODE=supabase`. Prefer the **local Supabase stack** (`supabase start`) so end-to-end tests need no cloud secrets.
@@ -1336,8 +1349,10 @@ Verification note (2026-11-06): `test_ingest_key_create_list_use_and_revoke_life
 
 **Done when**
 - [ ] The e2e happy path passes locally and in CI.
-- [ ] No page shows mock data when signed in with a real account.
+- [x] No page shows mock data when signed in with a real account. **Verified** across Overview, Issues, Logs, Providers, Settings, and Profile by `apps/web/e2e-real/real-stack.spec.ts` against the real API and an isolated PostgreSQL database (2026-11-08).
 - [x] The demo session still works with the backend stopped. (Verified by `apps/web/e2e/app.spec.ts` with port 8000 not listening, 2026-11-06.)
+
+**Local real-stack smoke (2026-11-08):** `npm run test:e2e:real` starts a disposable PostgreSQL database, initializes the real API, signs in with a test-only HS256 JWT, creates a persisted ingest key, sends duplicate requests through the in-process mock upstream, verifies the logs in Logs, starts the first detection from the new "Analyze traffic" empty state, and sees the resulting issue. It also verifies fixture-free rendering across all six signed-in pages, persists a currency setting across reload, and signs out to the login page. The mock-mode Playwright flow verifies that clearing demo data empties Logs and loading synthetic data repopulates it. Both E2E flows pass locally, including the real-stack runner against an externally provided PostgreSQL service. `Overview` now polls the authenticated account status so the first live request enables analysis instead of leaving the user stuck at "Waiting for your first request"; status-query errors are surfaced with retry. The hosted GitHub Actions workflow has not run, so the full end-to-end happy-path item stays open.
 
 ### I2 — Real-traffic validation · size L
 
@@ -1454,7 +1469,7 @@ req_hash = sha256( METHOD + "|" + RAW_PATH + "|" + SORTED_QUERY + "|" + CANONICA
 - The `Idempotency-Key` header is excluded from the hash and recorded as the boolean `has_idempotency_key`.
 - Golden vectors (kept in `apps/api/tests/data/hash_vectors.json`): reordered JSON keys hash the same; extra whitespace hashes the same; a changed value differs; reordered form fields hash the same; reordered query parameters hash the same; a different id in the path differs; a different method differs; invalid JSON falls back to the raw hash.
 
-**Endpoint normalisation.** Segments that are all digits, long hex or UUIDs, or provider-prefixed ids (`cus_…`, `pi_…`, `ch_…`) become `{id}`. The existing normaliser is ported with test vectors for each shape, including look-alikes that must **not** be replaced (`/v1/chat/completions`, `/v1/models`).
+**Endpoint normalisation.** Segments that are all digits, long hex or UUIDs, provider-prefixed ids (`cus_…`, `pi_…`, `ch_…`), or opaque URL-safe values at least 32 characters long become `{id}`. The existing normaliser is ported with test vectors for each shape, including look-alikes that must **not** be replaced (`/v1/chat/completions`, `/v1/models`).
 
 **Metadata extracted after the response** (never stored beyond these fields):
 - OpenAI request: `model`, `stream`, `uses_tools` (presence of `tools`, `functions` or `tool_choice`), `context_hash` (hash of concatenated system and developer message text when ≥ 200 characters), `context_tokens`.

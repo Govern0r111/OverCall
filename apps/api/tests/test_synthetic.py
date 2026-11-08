@@ -39,8 +39,10 @@ class BaselineWindows:
     unbatched_window_s = 5
     token_bloat_min_repeats = 3
     token_bloat_min_prompt_tokens = 1_500
+    token_bloat_min_context_tokens = 1_024
     model_overuse_max_prompt_tokens = 800
     model_overuse_max_completion_tokens = 300
+    model_overuse_min_calls = 10
 
 
 def serialize(value) -> bytes:

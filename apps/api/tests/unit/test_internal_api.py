@@ -18,21 +18,36 @@ class FakeSession:
         self.value = value
         self.error = error
         self.statements: list[str] = []
+        self.parameters: list[dict[str, object] | None] = []
+        self.commit_count = 0
+        self.rollback_count = 0
 
-    async def scalar(self, statement: Any) -> Any:
+    async def scalar(
+        self,
+        statement: Any,
+        parameters: dict[str, object] | None = None,
+    ) -> Any:
         self.statements.append(str(statement))
+        self.parameters.append(parameters)
         if self.error is not None:
             raise self.error
         return self.value
+
+    async def commit(self) -> None:
+        self.commit_count += 1
+
+    async def rollback(self) -> None:
+        self.rollback_count += 1
 
 
 def _client(
     session: FakeSession | None = None,
     *,
     internal_token: str | None = INTERNAL_TOKEN,
+    settings: Settings | None = None,
 ) -> TestClient:
     token = SecretStr(internal_token) if internal_token is not None else None
-    app = create_app(Settings(app_env="test", database_url=None, internal_token=token))
+    app = create_app(settings or Settings(app_env="test", database_url=None, internal_token=token))
     if session is not None:
 
         async def db_session():
@@ -106,3 +121,67 @@ def test_internal_database_size_rejects_invalid_database_result() -> None:
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "not_ready"
+
+
+def test_internal_purge_requires_auth_before_opening_a_database_session() -> None:
+    app = create_app(
+        Settings(
+            app_env="test",
+            database_url=None,
+            internal_token=SecretStr(INTERNAL_TOKEN),
+        )
+    )
+    db_called = False
+
+    async def db_session():
+        nonlocal db_called
+        db_called = True
+        raise AssertionError("database dependency must not run for an unauthorized request")
+        yield
+
+    app.dependency_overrides[get_db_session] = db_session
+    with TestClient(app) as client:
+        response = client.post("/internal/purge")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    assert not db_called
+
+
+def test_internal_purge_executes_configured_caps_and_commits() -> None:
+    session = FakeSession(value=4)
+    settings = Settings(
+        app_env="test",
+        database_url=None,
+        internal_token=SecretStr(INTERNAL_TOKEN),
+        log_retention_default_days=7,
+        max_logs_per_user=321,
+    )
+    with _client(session, settings=settings) as client:
+        response = client.post(
+            "/internal/purge",
+            headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"rows_deleted": 4}
+    assert len(session.statements) == 1
+    assert "public.purge_old_logs" in session.statements[0]
+    assert session.parameters == [{"batch": 5000, "retention_days": 7, "max_logs_per_user": 321}]
+    assert session.commit_count == 1
+    assert session.rollback_count == 0
+
+
+def test_internal_purge_rolls_back_and_hides_database_errors() -> None:
+    session = FakeSession(error=RuntimeError("database details must not leak"))
+    with _client(session) as client:
+        response = client.post(
+            "/internal/purge",
+            headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "not_ready"
+    assert "database details must not leak" not in response.text
+    assert session.commit_count == 0
+    assert session.rollback_count == 1

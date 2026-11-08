@@ -1,3 +1,5 @@
+import logging
+
 from fastapi.testclient import TestClient
 
 from overcall.config import Settings
@@ -27,6 +29,26 @@ def test_404_uses_contract_error_shape() -> None:
     assert response.json()["error"]["code"] == "not_found"
     assert response.json()["error"]["message"] == ERROR_CATALOG["not_found"]["message"]
     assert "request_id" in response.json()["error"]
+
+
+def test_rate_limit_error_includes_retry_after_header() -> None:
+    app = create_app(Settings(app_env="test", database_url=None))
+
+    @app.get("/rate-limited")
+    def rate_limited() -> None:
+        raise OvercallError(
+            "rate_limited",
+            429,
+            ERROR_CATALOG["rate_limited"]["message"],
+            headers={"Retry-After": "60"},
+        )
+
+    with TestClient(app) as client:
+        response = client.get("/rate-limited")
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "60"
+    assert response.json()["error"]["code"] == "rate_limited"
 
 
 def test_422_does_not_return_submitted_input() -> None:
@@ -61,3 +83,22 @@ def test_unhandled_error_is_generic_and_has_no_traceback() -> None:
     assert response.json()["error"]["code"] == "internal_error"
     assert "do not return this internal detail" not in response.text
     assert "Traceback" not in response.text
+
+
+def test_unhandled_error_redacts_database_uri_password_from_logs(caplog) -> None:
+    database_uri = "postgresql+asyncpg://overcall:db-pass-sentinel@db.example.test:5432/overcall"
+    app = create_app(Settings(app_env="test", database_url=None))
+
+    @app.get("/v1/database-crash")
+    def database_crash() -> None:
+        raise RuntimeError(f"database connection failed: {database_uri}")
+
+    caplog.set_level(logging.ERROR, logger="overcall.errors")
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/v1/database-crash")
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "internal_error"
+    assert database_uri not in response.text
+    assert "db-pass-sentinel" not in caplog.text
+    assert "Unhandled request exception" in caplog.text

@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-11-08T09:06:56.121639+00:00",
+  "requests": 7451,
+  "rules": [
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 28,
+      "positives": 28,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "duplicate_calls",
+      "tier": 1,
+      "true_positives": 28
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 42,
+      "positives": 42,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "missing_cache",
+      "tier": 1,
+      "true_positives": 42
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 21,
+      "positives": 21,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "retry_storm",
+      "tier": 1,
+      "true_positives": 21
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 14,
+      "positives": 14,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "oversized_payload",
+      "tier": 2,
+      "true_positives": 14
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 28,
+      "positives": 28,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "unbatched_calls",
+      "tier": 2,
+      "true_positives": 28
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 21,
+      "positives": 21,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "token_bloat",
+      "tier": 3,
+      "true_positives": 21
+    },
+    {
+      "false_positives_on_hard_negatives": 0,
+      "flagged": 70,
+      "positives": 70,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "model_overuse",
+      "tier": 3,
+      "true_positives": 70
+    }
+  ]
+}

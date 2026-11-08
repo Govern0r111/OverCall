@@ -13,10 +13,11 @@ class OversizedPayload(Rule):
     name = "Oversized payloads"
     tier = 2
     description = "Request or response bodies larger than the size threshold (large prompts, unpaginated or over-expanded lists)."
+    threshold_keys = ("oversized_bytes",)
 
     def detect(self, logs, ctx):
         limit = ctx.w.oversized_bytes
-        flagged = [l for l in logs if max(l.req_size, l.resp_size) > limit]
+        flagged = [l for l in ctx.filter_logs(logs) if max(l.req_size, l.resp_size) > limit]
         findings = []
         for (prov, ep), items in by_endpoint(flagged).items():
             waste = {}

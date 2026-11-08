@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     log_flush_interval_ms: int = 1_000
     rate_limit_proxy_rps: int = 50
     rate_limit_api_rpm: int = 120
+    rate_limit_auth_ip_rpm: int = 10
     max_inflight: int = 100
     log_retention_default_days: int = 14
     max_logs_per_user: int = 100_000
@@ -69,6 +70,7 @@ class Settings(BaseSettings):
         "log_flush_interval_ms",
         "rate_limit_proxy_rps",
         "rate_limit_api_rpm",
+        "rate_limit_auth_ip_rpm",
         "log_retention_default_days",
         "max_logs_per_user",
     )

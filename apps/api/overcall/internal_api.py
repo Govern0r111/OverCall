@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .config import Settings
 from .deps import get_db_session
 from .errors import OvercallError
 from .logging import get_logger
@@ -21,6 +22,10 @@ class DatabaseSizeResponse(BaseModel):
     bytes: int
     limit_bytes: int
     percent: float
+
+
+class PurgeResponse(BaseModel):
+    rows_deleted: int
 
 
 async def require_internal_authorization(request: Request) -> None:
@@ -65,3 +70,46 @@ async def get_database_size(
         limit_bytes=DATABASE_SIZE_LIMIT_BYTES,
         percent=round(database_size / DATABASE_SIZE_LIMIT_BYTES * 100, 2),
     )
+
+
+@router.post(
+    "/internal/purge",
+    response_model=PurgeResponse,
+    include_in_schema=False,
+)
+async def purge_request_logs(
+    request: Request,
+    _authorized: None = Depends(require_internal_authorization),  # noqa: B008
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+) -> PurgeResponse:
+    settings: Settings = request.app.state.settings
+    try:
+        deleted = await session.scalar(
+            text(
+                "SELECT public.purge_old_logs("
+                "batch => :batch, "
+                "default_retention_days => :retention_days, "
+                "max_logs_per_user => :max_logs_per_user)"
+            ),
+            {
+                "batch": 5_000,
+                "retention_days": settings.log_retention_default_days,
+                "max_logs_per_user": settings.max_logs_per_user,
+            },
+        )
+        await session.commit()
+    except Exception as exc:
+        try:
+            await session.rollback()
+        except Exception:
+            pass
+        logger.warning("Request-log purge failed: %s", type(exc).__name__)
+        raise OvercallError(
+            "not_ready", 503, "The service is not ready. Try again shortly."
+        ) from exc
+
+    if not isinstance(deleted, int) or deleted < 0:
+        logger.warning("Request-log purge returned an invalid result")
+        raise OvercallError("not_ready", 503, "The service is not ready. Try again shortly.")
+
+    return PurgeResponse(rows_deleted=deleted)

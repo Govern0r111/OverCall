@@ -11,5 +11,11 @@ Pricing tests and historical selection passed, but the configured GPT-4/4o IDs a
 Retain B3-04 as a historical-evidence criterion and leave it unchecked; do not re-scope or fabricate a pre-rule baseline tag. Read-only T005 and rule-behavior checks may proceed. Make code changes only when independently supported by current requirements/tests; do not alter rules or fixtures to manufacture historical provenance.
 
 
-## 2026-11-06T16:55:22Z — DevOps (t28.2 broadcast)
+## 2026-11-06T16:55:22Z ï¿½ DevOps (t28.2 broadcast)
 Added .github/workflows/keepalive.yml with scheduled API readiness checks and a protected daily database-size alert, using least-privilege permissions and fail-closed response validation. The workflow requires Actions secrets API_URL and INTERNAL_TOKEN; live schedule, alert delivery, hosted secrets, external pinger, and production checks remain unverified. See .github/modernize/rearchitecture/artifacts/t28.2-devops.md.
+
+
+## 2026-11-06T17:15:52Z ï¿½ Coordinator (checklist follow-ups)
+- B9: t15 verified SSE pass-through/disconnect handling, but usage parsing/tiktoken estimation remains unchecked; leave it open pending t15.1.
+- B11: t30 implemented local bounded body/purge work, but Postgres/pg_cron and seven-day soak remain open; separate rate-limit and response-buffer caps require t30.1.
+- t16 contract generation has a HIGH finding; no dependents may proceed until backend remediation and a fresh clean t16 recheck.

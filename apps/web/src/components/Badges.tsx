@@ -20,8 +20,11 @@ export const SeverityBadge = ({ severity, testId }: { severity: Severity; testId
   </span>
 );
 
-export const TierBadge = ({ tier, confidence, testId }: { tier: number; confidence?: number; testId?: string }) => {
+export const TierBadge = ({ tier, confidence, testId }: { tier: number; confidence?: number | null; testId?: string }) => {
   if (tier === 3) {
+    const confidenceLabel = confidence == null || !Number.isFinite(confidence)
+      ? "Confidence unknown"
+      : `Confidence ${Math.round(confidence * 100)}%`;
     return (
       <span
         data-testid={testId}
@@ -29,7 +32,7 @@ export const TierBadge = ({ tier, confidence, testId }: { tier: number; confiden
       >
         <FlaskConical className="h-3 w-3" strokeWidth={2} />
         Experimental
-        {confidence !== undefined && <span className="font-mono">· {Math.round(confidence * 100)}%</span>}
+        <span className="font-mono">· {confidenceLabel}</span>
       </span>
     );
   }

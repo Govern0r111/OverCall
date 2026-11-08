@@ -1,0 +1,6 @@
+warning: in the working copy of '.github/modernize/rearchitecture/team/backend/inbox.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.github/modernize/rearchitecture/team/teamlead/inbox.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/web/package.json', LF will be replaced by CRLF the next time Git touches it
+.github/modernize/rearchitecture/team/backend/inbox.md:37: new blank line at EOF.
+.github/modernize/rearchitecture/team/teamlead/inbox.md:22: new blank line at EOF.

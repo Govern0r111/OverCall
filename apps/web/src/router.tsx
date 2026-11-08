@@ -5,6 +5,7 @@ import { AppProvider, useApp } from "./context/AppContext";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Toaster } from "./components/ui/sonner";
+import { Sheet } from "./components/ui/sheet";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { LandingPage } from "./features/landing/LandingPage";
 import AuthCallback from "./pages/AuthCallback";
@@ -15,18 +16,19 @@ const Providers = lazy(() => import("./pages/Providers"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Logs = lazy(() => import("./pages/Logs"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 const Shell = () => {
   const { theme } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
-    <>
+    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
       <div className="flex min-h-screen bg-background text-foreground">
-        <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+        <Sidebar onClose={() => setMobileMenuOpen(false)} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar onMenuClick={() => setMobileMenuOpen(true)} menuOpen={mobileMenuOpen} />
+          <Topbar />
           <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
-            <div className="mx-auto max-w-6xl px-6 py-10 lg:px-12">
+            <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
               <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Loading your page…</p>}>
                 <Routes>
                   <Route index element={<Overview />} />
@@ -34,6 +36,7 @@ const Shell = () => {
                   <Route path="logs" element={<Logs />} />
                   <Route path="providers" element={<Providers />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="profile" element={<Profile />} />
                   <Route path="*" element={<Navigate to="/app" replace />} />
                 </Routes>
               </Suspense>
@@ -42,7 +45,7 @@ const Shell = () => {
         </div>
       </div>
       <Toaster theme={theme} position="bottom-right" />
-    </>
+    </Sheet>
   );
 };
 

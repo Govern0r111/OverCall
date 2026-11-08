@@ -9,6 +9,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from overcall.config import Settings  # noqa: E402
 from overcall.main import create_app  # noqa: E402
 
 
@@ -18,7 +19,27 @@ def main() -> None:
     parser.add_argument("--format", choices=("json", "yaml"), default="yaml")
     args = parser.parse_args()
 
-    document = create_app().openapi()
+    document = create_app(Settings(app_env="test", database_url=None)).openapi()
+    document["paths"] = {
+        path: operations
+        for path, operations in document["paths"].items()
+        if path.startswith("/v1/")
+    }
+    if args.output and args.output.exists():
+        existing = json.loads(args.output.read_text(encoding="utf-8"))
+        for path, operations in document["paths"].items():
+            for method, operation in operations.items():
+                previous = existing.get("paths", {}).get(path, {}).get(method, {})
+                if "operationId" in previous:
+                    operation["operationId"] = previous["operationId"]
+                if any(str(status).startswith("2") for status in operation.get("responses", {})):
+                    operation.update(
+                        {
+                            name: value
+                            for name, value in previous.items()
+                            if name.startswith("x-response-")
+                        }
+                    )
     rendered = (
         json.dumps(document, indent=2)
         if args.format == "json"

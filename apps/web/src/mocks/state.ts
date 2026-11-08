@@ -2,6 +2,9 @@ import type {
   ApiAccuracy,
   ApiIssue,
   ApiIssueList,
+  ApiIngestKey,
+  ApiIngestKeyCreated,
+  ApiLogFacets,
   ApiLogEntry,
   ApiLogList,
   ApiOverview,
@@ -10,6 +13,7 @@ import type {
   ApiSettings,
   ApiSettingsUpdate,
 } from "../lib/api";
+import proxyRoutes from "../../../../contract/fixtures/proxy/routes.json";
 
 const issueId = "11111111-1111-4111-8111-111111111111";
 
@@ -90,6 +94,29 @@ const initialLogs: ApiLogEntry[] = [
   makeLog("44444444-4444-4444-8444-444444444444", 38, "stripe", "/v1/payment_intents", 201),
   makeLog("55555555-5555-4555-8555-555555555555", 95, "openai", "/v1/embeddings", 429),
 ];
+
+let largeDemoLogs: ApiLogEntry[] | null = null;
+
+function getLargeDemoLogs(): ApiLogEntry[] {
+  if (!largeDemoLogs) {
+    const providers = ["openai", "stripe", "aws"];
+    const statuses = [200, 201, 429, 500];
+    largeDemoLogs = Array.from({ length: 5_000 }, (_, index) => {
+      const id = `00000000-0000-4000-8000-${index.toString().padStart(12, "0")}`;
+      const endpoint = index === 4_999
+        ? "/v1/demo/requests/target-04999"
+        : `/v1/demo/requests/${index.toString().padStart(5, "0")}`;
+      return makeLog(
+        id,
+        index,
+        providers[index % providers.length],
+        endpoint,
+        statuses[index % statuses.length],
+      );
+    });
+  }
+  return largeDemoLogs;
+}
 
 const initialSettings: ApiSettings = {
   currency: "INR",
@@ -198,6 +225,8 @@ let settings = readStoredSettings();
 let hasData = true;
 let logs = [...initialLogs];
 let issues = [demoIssue];
+let ingestKeys: ApiIngestKey[] = [];
+let ingestKeySequence = 0;
 
 export function getSettings(): ApiSettings {
   return structuredClone(settings);
@@ -223,9 +252,72 @@ export function getIssues(filters: { provider?: string; severity?: string; tier?
   return { items: structuredClone(items), next_cursor: null };
 }
 
-export function getLogs(provider?: string, limit = 25): ApiLogList {
-  const items = logs.filter((log) => !provider || log.provider === provider).slice(0, Math.min(limit, 200));
-  return { items: structuredClone(items), next_cursor: null };
+export interface ApiLogFilters {
+  q?: string;
+  provider?: string;
+  status_class?: string;
+  endpoint?: string;
+  caller?: string;
+  model?: string;
+  issue_id?: string;
+  from?: string;
+  to?: string;
+}
+
+export function getLogs(filters: ApiLogFilters = {}, limit = 25, cursor?: string, large = false): ApiLogList {
+  const search = filters.q?.toLowerCase();
+  const occurredFrom = filters.from ? new Date(filters.from).getTime() : Number.NEGATIVE_INFINITY;
+  const occurredTo = filters.to ? new Date(filters.to).getTime() : Number.POSITIVE_INFINITY;
+  const source = large ? getLargeDemoLogs() : logs;
+  const matching = source.filter((log) => {
+    const time = new Date(log.occurred_at).getTime();
+    return (
+      (!filters.provider || log.provider === filters.provider) &&
+      (!filters.status_class || `${Math.floor(log.status / 100)}xx` === filters.status_class) &&
+      (!filters.endpoint || log.endpoint === filters.endpoint) &&
+      (!filters.caller || log.caller === filters.caller) &&
+      (!filters.model || log.model === filters.model) &&
+      (!filters.issue_id || log.flagged_by.some((flag) => flag.issue_id === filters.issue_id)) &&
+      (!filters.from || time >= occurredFrom) &&
+      (!filters.to || time <= occurredTo) &&
+      (!search || [
+        log.provider,
+        log.method,
+        log.endpoint,
+        log.caller ?? "",
+        log.model ?? "",
+      ].some((value) => value.toLowerCase().includes(search)) || Boolean(search && log.req_hash.toLowerCase().startsWith(search)))
+    );
+  }).sort((a, b) =>
+    new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime() ||
+    b.id.localeCompare(a.id)
+  );
+  const cursorIndex = cursor ? matching.findIndex((log) => log.id === cursor) : -1;
+  const start = cursorIndex < 0 ? 0 : cursorIndex + 1;
+  const pageSize = Math.max(1, Math.min(limit, 200));
+  const items = matching.slice(start, start + pageSize);
+  const hasMore = start + items.length < matching.length;
+  return {
+    items: structuredClone(items),
+    next_cursor: hasMore && items.length ? items[items.length - 1].id : null,
+  };
+}
+
+export function getLogFacets(large = false): ApiLogFacets {
+  const source = large ? getLargeDemoLogs() : logs;
+  const unique = (values: Array<string | null>) =>
+    [...new Set(values.filter((value): value is string => Boolean(value)))].sort().slice(0, 100);
+  const counts = new Map<string, number>();
+  for (const log of source) counts.set(log.endpoint, (counts.get(log.endpoint) ?? 0) + 1);
+  return {
+    providers: unique(source.map((log) => log.provider)),
+    endpoints: [...counts.entries()]
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+      .slice(0, 100),
+    callers: unique(source.map((log) => log.caller)),
+    models: unique(source.map((log) => log.model)),
+  };
 }
 
 export function getOverview(): ApiOverview {
@@ -265,12 +357,13 @@ export function getProviders(): ApiProvider[] {
     const proxyCount = logs.filter((log) => log.provider === id && !log.is_demo).length;
     const demoCount = logs.filter((log) => log.provider === id && log.is_demo).length;
     const providerPricing = pricing[id];
+    const proxyBaseUrl = `http://localhost:8000/proxy/${id}/v1`;
     return {
       id,
       name: id === "openai" ? "OpenAI" : id === "stripe" ? "Stripe" : "AWS",
       status: id === "aws" ? "coming_soon" : proxyCount ? "receiving_traffic" : hasData ? "demo_only" : "waiting",
-      proxy_base_url: `http://localhost:8000/proxy/${id}/v1`,
-      snippets: [],
+      proxy_base_url: proxyBaseUrl,
+      snippets: getProviderSnippets(id, proxyBaseUrl),
       traffic: {
         proxy: proxyCount,
         demo: demoCount,
@@ -290,6 +383,34 @@ export function getProviders(): ApiProvider[] {
           : null,
     };
   });
+}
+
+export function getIngestKeys(): ApiIngestKey[] {
+  return structuredClone(ingestKeys);
+}
+
+export function createIngestKey(name: string): ApiIngestKeyCreated | null {
+  if (ingestKeys.filter((key) => key.revoked_at === null).length >= 5) return null;
+  ingestKeySequence += 1;
+  const key = `oc_demo_${ingestKeySequence.toString().padStart(8, "0")}`;
+  const safeKey: ApiIngestKey = {
+    id: `00000000-0000-4000-8000-${ingestKeySequence.toString().padStart(12, "0")}`,
+    name,
+    prefix: key.slice(0, 9),
+    created_at: new Date().toISOString(),
+    last_used_at: null,
+    revoked_at: null,
+  };
+  ingestKeys = [safeKey, ...ingestKeys];
+  return { ...safeKey, key };
+}
+
+export function revokeIngestKey(id: string): void {
+  ingestKeys = ingestKeys.map((key) =>
+    key.id === id && key.revoked_at === null
+          ? { ...key, revoked_at: new Date().toISOString() }
+          : key,
+  );
 }
 
 export function getEvaluation(): ApiAccuracy {
@@ -330,6 +451,53 @@ export function loadSynthetic(seed: number) {
   logs = [...initialLogs];
   issues = [demoIssue];
   return { inserted: 84 };
+}
+
+function getProviderSnippets(
+  provider: ApiProvider["id"],
+  baseUrl: string,
+): ApiProvider["snippets"] {
+  if (provider === "aws") return [];
+  return proxyRoutes[provider].flatMap(({ method, path }) => {
+    const url = `${baseUrl}${path}`;
+    const overcallKey = "YOUR_OVERCALL_KEY";
+    const isStripe = provider === "stripe";
+    const curlAuth = isStripe
+      ? `-u "$STRIPE_TEST_KEY:"`
+      : `-H "Authorization: Bearer $OPENAI_API_KEY"`;
+    const pythonAuth = isStripe
+      ? `auth=(os.environ["STRIPE_TEST_KEY"], ""), headers={"X-Overcall-Key": "${overcallKey}"}`
+      : `headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "X-Overcall-Key": "${overcallKey}"}`;
+    const nodeAuth = isStripe
+      ? `'Authorization': 'Basic ' + Buffer.from(process.env.STRIPE_TEST_KEY + ':').toString('base64')`
+      : `'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY`;
+    const curlBody = isStripe
+      ? ""
+      : ` -H 'Content-Type: application/json' --data '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'`;
+    const pythonBody = isStripe
+      ? ""
+      : `, json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello"}]}`;
+    const nodeBody = isStripe
+      ? ""
+      : `, body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Hello' }] })`;
+    return [
+      {
+        id: "curl",
+        label: "cURL",
+        code: `curl -X ${method} '${url}' ${curlAuth} -H 'X-Overcall-Key: ${overcallKey}'${curlBody}`,
+      },
+      {
+        id: "python",
+        label: "Python",
+        code: `import os\nimport requests\n\nrequests.request('${method}', '${url}', ${pythonAuth}${pythonBody})`,
+      },
+      {
+        id: "node",
+        label: "Node",
+        code: `await fetch('${url}', { method: '${method}', headers: { ${nodeAuth}, 'X-Overcall-Key': '${overcallKey}' }${nodeBody} })`,
+      },
+    ];
+  });
 }
 
 export function clearData() {
