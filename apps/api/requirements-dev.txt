@@ -1,0 +1,7 @@
+-r requirements.txt
+pip-audit==2.10.1
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
+pytest-xdist==3.6.1
+ruff==0.11.5
+PyYAML==6.0.2

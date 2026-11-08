@@ -1,0 +1,51 @@
+[
+  {
+    "id": "duplicate_calls",
+    "name": "Duplicate calls",
+    "tier": 1,
+    "description": "The exact same request (provider, method, payload hash) repeated within the short window after a successful response.",
+    "experimental": false
+  },
+  {
+    "id": "missing_cache",
+    "name": "Missing caching",
+    "tier": 1,
+    "description": "Idempotent requests (GET or deterministic POST) with identical payloads re-sent within the long window after a successful response.",
+    "experimental": false
+  },
+  {
+    "id": "retry_storm",
+    "name": "Retry storms",
+    "tier": 1,
+    "description": "Repeated identical calls after a non-2xx response, retried faster than the minimum backoff.",
+    "experimental": false
+  },
+  {
+    "id": "oversized_payload",
+    "name": "Oversized payloads",
+    "tier": 2,
+    "description": "Request or response bodies larger than the size threshold (large prompts, unpaginated or over-expanded lists).",
+    "experimental": false
+  },
+  {
+    "id": "unbatched_calls",
+    "name": "Unbatched calls",
+    "tier": 2,
+    "description": "Bursts of single calls to an endpoint that has a documented batch equivalent.",
+    "experimental": false
+  },
+  {
+    "id": "token_bloat",
+    "name": "Repeated context resends",
+    "tier": 3,
+    "description": "Chat requests that resend the same large system/context block on every call (LLM-specific, experimental).",
+    "experimental": true
+  },
+  {
+    "id": "model_overuse",
+    "name": "High-cost model for small tasks",
+    "tier": 3,
+    "description": "Premium models used for short prompts with short answers where a smaller model is usually sufficient (experimental).",
+    "experimental": true
+  }
+]

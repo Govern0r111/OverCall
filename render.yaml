@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: overcall-api
+    runtime: python
+    rootDir: apps/api
+    plan: free
+    buildCommand: python -m pip install . && python scripts/warm_tiktoken.py
+    startCommand: python -m uvicorn overcall.main:app --host 0.0.0.0 --port $PORT --proxy-headers --no-access-log
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.15
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: INGEST_KEY_PEPPER
+        sync: false
+      - key: INTERNAL_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_PROXY_BASE_URL
+        sync: false
+      - key: ALLOW_REAL_UPSTREAM
+        sync: false
+      - key: TIKTOKEN_CACHE_DIR
+        value: .tiktoken

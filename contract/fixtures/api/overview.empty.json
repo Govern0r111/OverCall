@@ -1,0 +1,35 @@
+{
+  "has_data": false,
+  "is_demo_data": false,
+  "generated_at": null,
+  "run_id": null,
+  "window": {
+    "start": null,
+    "end": null,
+    "days": 1.0,
+    "low_confidence_projection": false
+  },
+  "request_count": 0,
+  "flagged_request_count": 0,
+  "total_spend_usd": "0",
+  "spend_savings": {
+    "window_usd": "0",
+    "projected_monthly_usd": "0",
+    "percent_of_spend": 0.0
+  },
+  "experimental_spend_savings": {
+    "projected_monthly_usd": "0"
+  },
+  "reliability_findings": {
+    "count": 0,
+    "modelled_overhead_monthly_usd": "0"
+  },
+  "severity_breakdown": {
+    "critical": 0,
+    "warning": 0,
+    "info": 0
+  },
+  "by_provider": [],
+  "trend": [],
+  "top_issues": []
+}

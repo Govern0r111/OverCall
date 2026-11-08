@@ -1,0 +1,141 @@
+import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { TrendPoint } from "../lib/api";
+import { formatDay } from "../lib/format";
+import { useMoney } from "../context/AppContext";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { Card } from "./PageHeader";
+
+const PALETTE = {
+  accent: "var(--accent)",
+  savings: "var(--positive)",
+  grid: "var(--border)",
+  muted: "var(--text-muted)",
+};
+
+interface ChartTooltipEntry {
+  dataKey?: string;
+  color?: string;
+  value?: number | string | null;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: readonly ChartTooltipEntry[];
+  label?: string | number;
+}
+
+const ChartTooltip = ({ active, payload, label }: ChartTooltipProps) => {
+  const money = useMoney();
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2.5 text-xs ">
+      <p className="mb-2 font-medium">{label == null ? "" : formatDay(String(label))}</p>
+      <div className="space-y-1">
+        {payload.map((p, index) => {
+          const value = Number(p.value);
+          return (
+          <p key={p.dataKey ?? index} className="flex items-center justify-between gap-8">
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <span className="h-1.5 w-3 rounded-full" style={{ background: p.color }} />
+              {p.dataKey === "cost_usd" ? "Total spend" : "Avoidable"}
+            </span>
+            <span className="font-mono font-medium">{money(Number.isFinite(value) ? value : 0)}</span>
+          </p>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const Legend = ({ c }: { c: typeof PALETTE }) => (
+  <div className="flex items-center gap-5 text-xs text-muted-foreground">
+    <span className="flex items-center gap-2">
+      <span className="h-2 w-4 rounded-sm" style={{ background: c.accent, opacity: 0.18 }} />
+      <span className="h-0.5 w-4 -ml-[18px]" style={{ background: c.accent }} />
+      Total spend
+    </span>
+    <span className="flex items-center gap-2">
+      <span className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: c.savings }} />
+      Avoidable
+    </span>
+  </div>
+);
+
+export const TrendChart = ({ data, className = "" }: { data: TrendPoint[]; className?: string }) => {
+  const money = useMoney();
+  const reducedMotion = usePrefersReducedMotion();
+  const c = PALETTE;
+  const tick = { fill: c.muted, fontSize: 12, fontFamily: "JetBrains Mono, monospace" };
+  return (
+    <Card testId="trend-chart-card" className={`flex min-w-0 flex-col p-4 sm:p-6 ${className}`}>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <h2 id="trend-chart-title" className="text-sm font-medium">Daily spend and avoidable spend</h2>
+        <Legend c={c} />
+      </div>
+      <div
+        data-testid="trend-chart"
+        role="group"
+        aria-labelledby="trend-chart-title"
+        className="mt-4 h-[260px] min-w-0 sm:mt-6"
+      >
+        {data.length ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={c.grid} vertical={false} />
+              <XAxis dataKey="date" tickFormatter={formatDay} tick={tick} axisLine={false} tickLine={false} dy={8} />
+              <YAxis tickFormatter={(v) => money(v, true)} tick={tick} axisLine={false} tickLine={false} width={72} />
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: c.grid, strokeWidth: 1 }} />
+              <Area
+                type="monotone"
+                dataKey="cost_usd"
+                stroke={c.accent}
+                strokeWidth={2}
+                fill={c.accent}
+                fillOpacity={0.1}
+                dot={false}
+                isAnimationActive={!reducedMotion}
+                animationDuration={600}
+              />
+              <Line
+                type="monotone"
+                dataKey="waste_usd"
+                stroke={c.savings}
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                dot={false}
+                isAnimationActive={!reducedMotion}
+                animationDuration={600}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p data-testid="trend-chart-empty" className="grid h-full place-items-center text-sm text-muted-foreground">
+            Waiting for first traffic
+          </p>
+        )}
+      </div>
+      <div className="sr-only">
+        <table className="w-px min-w-0 table-fixed">
+          <caption>Daily spend and avoidable spend by day</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Total spend</th>
+              <th scope="col">Avoidable spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((point) => (
+              <tr key={point.date}>
+                <th scope="row">{point.date}</th>
+                <td>{money(point.cost_usd)}</td>
+                <td>{money(point.waste_usd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+};

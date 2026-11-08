@@ -1,0 +1,32 @@
+{
+  "currency": "INR",
+  "usd_inr_rate": 83.5,
+  "rules_enabled": {
+    "duplicate_calls": true,
+    "missing_cache": true,
+    "retry_storm": true,
+    "oversized_payload": true,
+    "unbatched_calls": true,
+    "token_bloat": true,
+    "model_overuse": true
+  },
+  "tier3_enabled": false,
+  "thresholds": {
+    "short_window_s": 10,
+    "long_window_s": 600,
+    "retry_min_backoff_ms": 1000,
+    "retry_min_attempts": 3,
+    "oversized_bytes": 200000,
+    "unbatched_min_calls": 5,
+    "unbatched_window_s": 5,
+    "token_bloat_min_repeats": 3,
+    "token_bloat_min_context_tokens": 1024,
+    "model_overuse_max_prompt_tokens": 800,
+    "model_overuse_max_completion_tokens": 300,
+    "model_overuse_min_calls": 10
+  },
+  "upstream_mode": "mock",
+  "confirm_real_upstream": false,
+  "retention_days": 14,
+  "updated_at": "2026-01-01T00:00:00Z"
+}
