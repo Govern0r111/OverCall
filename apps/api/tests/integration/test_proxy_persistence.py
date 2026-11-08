@@ -900,7 +900,9 @@ def test_proxy_log_preparation_exception_is_redacted_and_upstream_response_is_pr
     ingest_key, _ = _seed_key(session)
     upstream_body = b'{"model":"gpt-4o-mini","usage":{"prompt_tokens":2,"completion_tokens":1}}'
     upstream = FakeUpstreamClient(httpx.Response(207, content=upstream_body))
-    preparation_secret = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.signature12345678"  # gitleaks:allow
+    preparation_secret = (
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.signature12345678"  # gitleaks:allow
+    )
     def fail_cost_calculation(*_args, **_kwargs):
         raise RuntimeError(f"token={preparation_secret}")
 
