@@ -3,10 +3,10 @@ name: Real-stack E2E
 on:
   push:
     branches:
-      - feat/f1-landing
+      - main
   pull_request:
     branches:
-      - feat/f1-landing
+      - main
 
 permissions:
   contents: read

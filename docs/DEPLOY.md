@@ -75,7 +75,7 @@ Import `Govern0r111/OverCall` into Vercel and configure the project as follows:
 - Keep the checked-in [`vercel.json`](../apps/web/vercel.json) build and output configuration:
   it runs `npm ci` and `npm run build`, serves `dist`, rewrites SPA routes to `index.html`, and
   adds baseline browser security headers. Use the Vite preset and do not override these settings.
-- Set **Production Branch** to `feat/f1-landing`.
+- Set **Production Branch** to `main`.
 - Enable Preview deployments for pull requests.
 
 `apps/web/.npmrc` enables the existing lockfile's legacy peer resolution (React Day Picker 8
@@ -119,7 +119,7 @@ policy once those origins are known; do not use a broad `https:` allowlist as a 
 
 ### Production gates and origin wiring
 
-Protect `feat/f1-landing` with a GitHub branch ruleset that requires pull requests, restricts
+Protect `main` with a GitHub branch ruleset that requires pull requests, restricts
 direct updates, and requires all of these status checks:
 
 - `API CI / api`
@@ -142,7 +142,7 @@ Before treating the frontend deployment as verified:
 
 1. Open a pull request and confirm its Vercel Preview build succeeds and uses mock/demo behavior
    without production API or Supabase access.
-2. Confirm the Production deployment comes from the protected `feat/f1-landing` branch.
+2. Confirm the Production deployment comes from the protected `main` branch.
 3. Open a nested application route directly and refresh it to verify SPA deep-link routing.
 4. Sign in through Supabase and confirm the signed-in Production dashboard has no demo labels.
 5. Confirm live API-backed dashboard requests succeed from the Production origin.
