@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from ..config import Settings
@@ -13,6 +14,7 @@ def create_database_engine(settings: Settings) -> AsyncEngine | None:
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     if not url.startswith("postgresql+asyncpg://"):
         raise ValueError("DATABASE_URL must use PostgreSQL with the asyncpg driver")
+    url = make_url(url).update_query_dict({"prepared_statement_cache_size": "0"})
 
     return create_async_engine(
         url,
