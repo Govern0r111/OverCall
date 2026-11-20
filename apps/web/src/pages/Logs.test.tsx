@@ -146,6 +146,45 @@ describe("logs page", () => {
     expect(screen.getByRole("combobox", { name: "Filter logs by time range" })).toHaveValue("custom");
   });
 
+  it("uses a normal-flow header for short result lists", () => {
+    state.logs = [sampleLog];
+    render(
+      <MemoryRouter>
+        <Logs />
+      </MemoryRouter>,
+    );
+
+    const desktopResults = screen.getByTestId("desktop-log-results");
+    expect(desktopResults.querySelector("thead")).not.toHaveClass("sticky");
+    expect(within(desktopResults).getByText("/v1/chat/completions")).toBeInTheDocument();
+    expect(within(screen.getByTestId("mobile-log-results")).getByText("/v1/chat/completions")).toBeInTheDocument();
+    expect(screen.queryByText("No requests match those filters.")).not.toBeInTheDocument();
+  });
+
+  it("keeps the normal-flow header at the virtualization threshold", () => {
+    state.logs = Array.from({ length: 500 }, (_, index) => ({
+      ...sampleLog,
+      id: `${index}`.padStart(36, "0"),
+    }));
+    render(
+      <MemoryRouter>
+        <Logs />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("desktop-log-results").querySelector("thead")).not.toHaveClass("sticky");
+  });
+
+  it("shows the empty state when there are no log results", () => {
+    render(
+      <MemoryRouter>
+        <Logs />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("No requests match those filters.")).toBeInTheDocument();
+  });
+
   it("uses facets and marks modelled cost and estimated tokens", () => {
     state.logs = [sampleLog];
     render(
@@ -203,6 +242,7 @@ describe("logs page", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByTestId("desktop-log-results").querySelector("thead")).toHaveClass("sticky", "top-0");
     expect(screen.getAllByRole("row").length).toBeLessThan(50);
     fireEvent.scroll(screen.getByTestId("logs-table-viewport"), { target: { scrollTop: 500 * 56 } });
     expect(within(screen.getByTestId("desktop-log-results")).getByText("/v1/logs/500")).toBeInTheDocument();

@@ -267,7 +267,7 @@ export default function Logs() {
           </ul>
           <div data-testid="desktop-log-results" className="hidden min-w-0 md:block">
             <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className={`pointer-events-none sticky ${virtualized ? "top-0" : "top-14"} border-b border-divider bg-card text-xs text-muted-foreground`}>
+              <thead className={`pointer-events-none ${virtualized ? "sticky top-0" : ""} border-b border-divider bg-card text-xs text-muted-foreground`}>
                 <tr>{["Time", "Provider", "Endpoint", "Status", "Latency", "Size", "Tokens", "Cost", "Flagged by"].map((heading) => <th key={heading} scope="col" className="px-5 py-3 font-medium">{heading}</th>)}</tr>
               </thead>
               <tbody>
