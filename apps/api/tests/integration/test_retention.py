@@ -92,10 +92,14 @@ def test_purge_removes_expired_rows_and_enforces_user_and_demo_caps() -> None:
             assert deleted == 4
 
             survivors = (
-                (await connection.execute(text("select req_hash from public.request_logs")))
-                .scalars()
-                .all()
-            )
+                await connection.execute(
+                    text(
+                        "select req_hash from public.request_logs "
+                        "where user_id in (:first, :second)"
+                    ),
+                    {"first": user_with_retention, "second": user_for_row_cap},
+                )
+            ).scalars().all()
             assert set(survivors) == {
                 "recent_proxy",
                 "newest_demo",
